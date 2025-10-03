@@ -50,7 +50,7 @@ export type Json =
   | { [key: string]: Json | undefined }
   | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       projects: {
@@ -81,29 +81,40 @@ export interface Database {
           category?: string
           created_at?: string | null
         }
+        // FIX: Add Relationships array to fix 'never' type inference issues.
+        Relationships: []
       }
       subtasks: {
         Row: {
           id: string
           name: string
           status: string
-          project_id: string | null
+          project_id: string
           created_at: string | null
         }
         Insert: {
           id?: string
           name: string
           status: string
-          project_id?: string | null
+          project_id: string
           created_at?: string | null
         }
         Update: {
           id?: string
           name?: string
           status?: string
-          project_id?: string | null
+          project_id?: string
           created_at?: string | null
         }
+        // FIX: Add Relationships array to fix 'never' type inference issues.
+        Relationships: [
+          {
+            foreignKeyName: "subtasks_project_id_fkey"
+            columns: ["project_id"]
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       skills: {
         Row: {
@@ -130,6 +141,8 @@ export interface Database {
           category?: string
           created_at?: string | null
         }
+        // FIX: Add Relationships array to fix 'never' type inference issues.
+        Relationships: []
       }
       transactions: {
         Row: {
@@ -156,29 +169,33 @@ export interface Database {
           type?: string
           created_at?: string | null
         }
+        // FIX: Add Relationships array to fix 'never' type inference issues.
+        Relationships: []
       }
       todos: {
         Row: {
           id: string
           text: string
-          completed: boolean | null
+          completed: boolean
           position: number
           created_at: string | null
         }
         Insert: {
           id?: string
           text: string
-          completed?: boolean | null
+          completed?: boolean
           position: number
           created_at?: string | null
         }
         Update: {
           id?: string
           text?: string
-          completed?: boolean | null
+          completed?: boolean
           position?: number
           created_at?: string | null
         }
+        // FIX: Add Relationships array to fix 'never' type inference issues.
+        Relationships: []
       }
     }
     Views: {

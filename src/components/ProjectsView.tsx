@@ -6,9 +6,11 @@ import { supabase } from '../supabaseClient';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon } from './icons/Icons';
 
-// FIX: Define type aliases for Insert types for cleaner props.
+// FIX: Define type aliases for Insert/Update types for cleaner props.
 type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
+type SubtaskUpdate = Database['public']['Tables']['subtasks']['Update'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
+type ProjectUpdate = Database['public']['Tables']['projects']['Update'];
 
 // Subtask Form
 const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Pick<SubtaskInsert, 'name' | 'status'>) => void; onCancel: () => void; }> = ({ subtask, onSave, onCancel }) => {
@@ -81,16 +83,19 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
     const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
     const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
 
-    // FIX: Use the specific 'Insert' type for the subtask payload.
+    // FIX: Use the specific 'Insert'/'Update' types for the subtask payload.
     const handleSaveSubtask = async (subtaskData: Pick<SubtaskInsert, 'name' | 'status'>) => {
         if (editingSubtask) {
-            const { error } = await supabase.from('subtasks').update(subtaskData).eq('id', editingSubtask.id);
+            const subtaskUpdate: SubtaskUpdate = subtaskData;
+            const { error } = await supabase.from('subtasks').update(subtaskUpdate).eq('id', editingSubtask.id);
             if(error) console.error("Error updating subtask", error);
         } else {
-            const { error } = await supabase.from('subtasks').insert({ ...subtaskData, project_id: project.id });
+            const subtaskInsert: SubtaskInsert = { ...subtaskData, project_id: project.id };
+            const { error } = await supabase.from('subtasks').insert(subtaskInsert);
             if(error) console.error("Error creating subtask", error);
         }
-        onSubtaskChange();
+        // onSubtaskChange is now handled by realtime, but we can call it for immediate feedback if needed
+        // onSubtaskChange(); 
         setIsSubtaskModalOpen(false);
         setEditingSubtask(null);
     };
@@ -99,7 +104,6 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
         if(window.confirm('Delete this subtask?')) {
             const { error } = await supabase.from('subtasks').delete().eq('id', subtaskId);
             if(error) console.error("Error deleting subtask", error);
-            else onSubtaskChange();
         }
     };
     
@@ -156,7 +160,6 @@ const ProjectsView: React.FC = () => {
     const [editingProject, setEditingProject] = useState<Project | null>(null);
 
     const fetchProjects = useCallback(async () => {
-        setLoading(true);
         const { data, error } = await supabase
             .from('projects')
             .select('*, subtasks(*)')
@@ -172,35 +175,44 @@ const ProjectsView: React.FC = () => {
 
     useEffect(() => {
         fetchProjects();
+        const channel = supabase.channel('projects-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload) => {
+            fetchProjects();
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'subtasks' }, (payload) => {
+            fetchProjects();
+          })
+          .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [fetchProjects]);
 
 
-    // FIX: Use the specific 'Insert' type for the project payload.
+    // FIX: Use the specific 'Insert'/'Update' types for the project payload.
     const handleSaveProject = async (projectData: ProjectInsert) => {
         if (editingProject) {
-            const { error } = await supabase.from('projects').update(projectData).eq('id', editingProject.id);
+            const projectUpdate: ProjectUpdate = projectData;
+            const { error } = await supabase.from('projects').update(projectUpdate).eq('id', editingProject.id);
             if (error) console.error('Error updating project:', error);
         } else {
             const { error } = await supabase.from('projects').insert(projectData);
             if (error) console.error('Error creating project:', error);
         }
-        await fetchProjects();
         setIsProjectModalOpen(false);
         setEditingProject(null);
     };
 
     const handleDeleteProject = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this project and all its subtasks?')) {
-            // First, delete related subtasks. This is important if you have RLS or foreign key constraints.
             const { error: subtaskError } = await supabase.from('subtasks').delete().eq('project_id', id);
             if (subtaskError) {
                 console.error('Error deleting subtasks:', subtaskError);
                 return;
             }
-
             const { error } = await supabase.from('projects').delete().eq('id', id);
             if (error) console.error('Error deleting project:', error);
-            else await fetchProjects();
         }
     };
 

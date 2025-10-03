@@ -1,5 +1,7 @@
 {
-  "name": "Freelancer's Dashboard",
+  "name": "Voice by Gemini_Freelancer's Dashboard",
   "description": "A comprehensive project management application for freelancers to manage projects, track skill development, and monitor finances. It provides an intuitive interface for organizing client work, planning learning goals, and overseeing monthly income and expenses.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

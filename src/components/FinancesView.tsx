@@ -5,8 +5,9 @@ import { supabase } from '../supabaseClient';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, TrendingUpIcon, TrendingDownIcon, ScaleIcon } from './icons/Icons';
 
-// FIX: Define a type alias for the Insert type for cleaner props.
+// FIX: Define type aliases for the Insert/Update types for cleaner props.
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
+type TransactionUpdate = Database['public']['Tables']['transactions']['Update'];
 
 const TransactionForm: React.FC<{
   transaction: Transaction | null;
@@ -64,7 +65,7 @@ const FinancesView: React.FC = () => {
     const [sortConfig, setSortConfig] = useState<{ key: keyof Transaction; direction: 'asc' | 'desc' } | null>(null);
 
     const fetchTransactions = useCallback(async () => {
-        setLoading(true);
+        // No need to set loading to true here to avoid flickering on realtime updates
         const { data, error } = await supabase
             .from('transactions')
             .select('*');
@@ -79,6 +80,15 @@ const FinancesView: React.FC = () => {
 
     useEffect(() => {
         fetchTransactions();
+        const channel = supabase.channel('transactions-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
+                fetchTransactions();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [fetchTransactions]);
 
     const filteredTransactions = useMemo(() => {
@@ -121,20 +131,21 @@ const FinancesView: React.FC = () => {
         if(window.confirm('Delete this transaction?')) { 
             const { error } = await supabase.from('transactions').delete().eq('id', id);
             if (error) console.error("Error deleting transaction", error);
-            else await fetchTransactions();
         }
     };
     
     // FIX: Use the specific 'Insert' type for the transaction payload.
     const handleSaveTransaction = async (transaction: TransactionInsert) => {
         if (editingTransaction) {
-            const { error } = await supabase.from('transactions').update(transaction).eq('id', editingTransaction.id);
+            // FIX: Ensure the payload matches the Update type for the update operation.
+            const transactionUpdate: TransactionUpdate = transaction;
+            const { error } = await supabase.from('transactions').update(transactionUpdate).eq('id', editingTransaction.id);
             if(error) console.error("Error updating transaction", error);
         } else {
+            // FIX: Ensure the payload matches the Insert type for the insert operation.
             const { error } = await supabase.from('transactions').insert(transaction);
             if(error) console.error("Error adding transaction", error);
         }
-        await fetchTransactions();
         setIsModalOpen(false);
         setEditingTransaction(null);
     };

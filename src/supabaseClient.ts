@@ -9,9 +9,4 @@ import { Database } from './types';
 const supabaseUrl = 'https://dkjyiwldhltqjxzdrgbj.supabase.co'; // Replace with your Supabase URL
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRranlpd2xkaGx0cWp4emRyZ2JqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NjE0NTUsImV4cCI6MjA3NTAzNzQ1NX0.Se2vGk4Lmq4SQq3ANqWNldpTSWgCwWdy8OnPf5CQDCo'; // Replace with your Supabase anon key
 
-if (!supabaseUrl || supabaseUrl === 'YOUR_SUPABASE_URL' || !supabaseAnonKey || supabaseAnonKey === 'YOUR_SUPABASE_ANON_KEY') {
-  console.error("Supabase credentials are not set. Please update src/supabaseClient.ts with your project's URL and anon key.");
-  alert("Supabase is not configured. Please see the console for instructions.");
-}
-
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);

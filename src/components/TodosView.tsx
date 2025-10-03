@@ -5,6 +5,10 @@ import { supabase } from '../supabaseClient';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 
+// FIX: Define type aliases for the Insert/Update types for cleaner props.
+type TodoInsert = Database['public']['Tables']['todos']['Insert'];
+type TodoUpdate = Database['public']['Tables']['todos']['Update'];
+
 const TodoForm: React.FC<{ todo: Todo | null; onSave: (text: string) => void; onCancel: () => void; }> = ({ todo, onSave, onCancel }) => {
     const [text, setText] = useState(todo?.text || '');
 
@@ -33,7 +37,6 @@ const TodosView: React.FC = () => {
     const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
 
     const fetchTodos = useCallback(async () => {
-        setLoading(true);
         const { data, error } = await supabase
             .from('todos')
             .select('*')
@@ -49,68 +52,73 @@ const TodosView: React.FC = () => {
 
     useEffect(() => {
         fetchTodos();
+        const channel = supabase.channel('todos-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, (payload) => {
+                fetchTodos();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [fetchTodos]);
 
 
     const handleSaveTodo = async (text: string) => {
         if (editingTodo) {
-            // FIX: Ensure payload conforms to the 'Update' type.
-            const { error } = await supabase.from('todos').update({ text }).eq('id', editingTodo.id);
+            // FIX: Ensure payload matches the Update type.
+            const todoUpdate: TodoUpdate = { text };
+            const { error } = await supabase.from('todos').update(todoUpdate).eq('id', editingTodo.id);
             if(error) console.error("Error updating todo:", error)
         } else {
             const newPosition = todos.length > 0 ? Math.max(...todos.map(t => t.position)) + 1 : 0;
-            // FIX: Ensure payload conforms to the 'Insert' type.
-            const { error } = await supabase.from('todos').insert({ text, completed: false, position: newPosition });
+            // FIX: Ensure payload matches the Insert type.
+            const todoInsert: TodoInsert = { text, completed: false, position: newPosition };
+            const { error } = await supabase.from('todos').insert(todoInsert);
             if(error) console.error("Error adding todo:", error)
         }
-        await fetchTodos();
         setIsModalOpen(false);
         setEditingTodo(null);
     };
 
     const toggleTodo = async (id: string, currentStatus: boolean) => {
-        // FIX: Ensure payload conforms to the 'Update' type.
-        const { error } = await supabase.from('todos').update({ completed: !currentStatus }).eq('id', id);
+        // FIX: Ensure payload matches the Update type.
+        const todoUpdate: TodoUpdate = { completed: !currentStatus };
+        const { error } = await supabase.from('todos').update(todoUpdate).eq('id', id);
         if(error) console.error("Error toggling todo:", error)
-        else await fetchTodos();
     };
 
     const deleteTodo = async (id: string) => {
         if(window.confirm('Delete this task?')) {
             const { error } = await supabase.from('todos').delete().eq('id', id);
             if(error) console.error("Error deleting todo:", error)
-            else await fetchTodos();
         }
     };
 
     const moveTodo = async (index: number, direction: 'up' | 'down') => {
-        if (direction === 'up' && index === 0) return;
-        if (direction === 'down' && index === todos.length - 1) return;
+        if ((direction === 'up' && index === 0) || (direction === 'down' && index === todos.length - 1)) return;
         
         const newTodos = [...todos];
         const item = newTodos[index];
         const swapIndex = direction === 'up' ? index - 1 : index + 1;
         
-        // Swap items
         newTodos[index] = newTodos[swapIndex];
         newTodos[swapIndex] = item;
 
-        // Create an array of updates
-        // FIX: Ensure the update payload conforms to the 'Update' type for upsert.
-        const updates: Database['public']['Tables']['todos']['Update'][] = newTodos.map((todo, i) => ({
-            id: todo.id,
+        // FIX: The upsert method expects objects that conform to the table's Insert type.
+        // We spread the existing todo to include all required fields and just update the position.
+        const updates = newTodos.map((todo, i) => ({
+            ...todo,
             position: i
         }));
+
+        setTodos(newTodos); // Optimistic update
 
         const { error } = await supabase.from('todos').upsert(updates);
 
         if (error) {
             console.error("Error reordering todos:", error);
-            // If error, refetch to revert optimistic update
-            await fetchTodos();
-        } else {
-            // Optimistically update UI to avoid waiting for refetch
-            setTodos(newTodos);
+            fetchTodos(); // Revert on error
         }
     };
 

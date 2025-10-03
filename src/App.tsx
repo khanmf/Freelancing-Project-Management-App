@@ -4,6 +4,7 @@ import ProjectsView from './components/ProjectsView';
 import SkillsView from './components/SkillsView';
 import FinancesView from './components/FinancesView';
 import TodosView from './components/TodosView';
+import VoiceAssistant from './components/VoiceAssistant';
 import { View } from './types';
 import { CodeIcon, ChartBarIcon, BriefcaseIcon, CheckCircleIcon } from './components/icons/Icons';
 
@@ -45,7 +46,7 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
       <Sidebar activeView={activeView} setActiveView={setActiveView} />
-      <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
+      <main className="flex-1 p-4 sm:p-8 overflow-y-auto relative">
         <header className="mb-8">
           <div className="flex items-center space-x-4">
             <div className="bg-gray-800 p-3 rounded-lg">
@@ -61,6 +62,7 @@ const App: React.FC = () => {
           {renderView()}
         </div>
       </main>
+      <VoiceAssistant />
     </div>
   );
 };

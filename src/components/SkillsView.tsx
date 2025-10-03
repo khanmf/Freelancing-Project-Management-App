@@ -6,8 +6,9 @@ import { SKILL_CATEGORIES, SKILL_STATUSES } from '../constants';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon } from './icons/Icons';
 
-// FIX: Define a type alias for the Insert type for cleaner props.
+// FIX: Define type aliases for the Insert/Update types for cleaner props.
 type SkillInsert = Database['public']['Tables']['skills']['Insert'];
+type SkillUpdate = Database['public']['Tables']['skills']['Update'];
 
 const SkillForm: React.FC<{
   skill: Skill | null;
@@ -108,7 +109,6 @@ const SkillsView: React.FC = () => {
     const [editingSkill, setEditingSkill] = useState<{ category: SkillCategory; skill: Skill | null } | null>(null);
 
     const fetchSkills = useCallback(async () => {
-        setLoading(true);
         const { data, error } = await supabase
             .from('skills')
             .select('*')
@@ -118,11 +118,13 @@ const SkillsView: React.FC = () => {
             console.error('Error fetching skills:', error);
         } else {
             const groupedSkills = (data || []).reduce((acc, skill) => {
-                const category = skill.category as SkillCategory;
+                // FIX: Cast skill to the correct type to avoid 'never' type issues.
+                const typedSkill = skill as Skill;
+                const category = typedSkill.category as SkillCategory;
                 if (!acc[category]) {
                     acc[category] = [];
                 }
-                acc[category].push(skill);
+                acc[category].push(typedSkill);
                 return acc;
             }, {} as Skills);
             setSkills(groupedSkills);
@@ -132,6 +134,15 @@ const SkillsView: React.FC = () => {
 
     useEffect(() => {
         fetchSkills();
+        const channel = supabase.channel('skills-changes')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'skills' }, (payload) => {
+                fetchSkills();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [fetchSkills]);
 
     const handleAddSkill = (category: SkillCategory) => {
@@ -148,7 +159,6 @@ const SkillsView: React.FC = () => {
         if(window.confirm('Are you sure you want to delete this skill?')) {
             const { error } = await supabase.from('skills').delete().eq('id', id);
             if (error) console.error("Error deleting skill:", error);
-            else await fetchSkills();
         }
     };
 
@@ -157,14 +167,15 @@ const SkillsView: React.FC = () => {
         if (editingSkill) {
             const { category, skill } = editingSkill;
             if (skill) { // Editing existing
-                const { error } = await supabase.from('skills').update(skillData).eq('id', skill.id);
+                const skillUpdate: SkillUpdate = skillData;
+                const { error } = await supabase.from('skills').update(skillUpdate).eq('id', skill.id);
                 if(error) console.error("Error updating skill:", error);
             } else { // Adding new
-                const { error } = await supabase.from('skills').insert({ ...skillData, category });
+                const skillInsert: SkillInsert = { ...skillData, category };
+                const { error } = await supabase.from('skills').insert(skillInsert);
                 if(error) console.error("Error adding skill:", error);
             }
         }
-        await fetchSkills();
         setIsModalOpen(false);
         setEditingSkill(null);
     };
