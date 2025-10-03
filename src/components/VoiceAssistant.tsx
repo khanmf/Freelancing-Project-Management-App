@@ -355,7 +355,6 @@ const VoiceAssistant: React.FC = () => {
             },
             config: {
                 responseModalities: [Modality.AUDIO],
-                inputAudioTranscription: {},
                 outputAudioTranscription: {},
                 tools: [{ functionDeclarations }],
                 systemInstruction: "You are a helpful assistant for a freelancer's dashboard. Your goal is to help the user manage their projects, skills, finances, and tasks. Be concise and clear. When a date is mentioned like 'next Friday' or 'end of the month', convert it to a YYYY-MM-DD format based on the current date. Today's date is " + new Date().toLocaleDateString('en-CA') + ".",
