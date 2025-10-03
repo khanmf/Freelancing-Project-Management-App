@@ -229,10 +229,9 @@ const ProjectsView: React.FC = () => {
             category: projectData.category,
         };
 
-        if (editingProject) {
+        if (editingProject && editingProject.id) {
             const { error } = await supabase.from('projects').update(projectPayload).eq('id', editingProject.id);
             if (error) console.error('Error updating project:', error);
-            // In a real app, you might want to diff subtasks. For simplicity, we just add new ones.
         } else {
             const { data, error } = await supabase.from('projects').insert(projectPayload).select().single();
             if (error) {
@@ -243,6 +242,10 @@ const ProjectsView: React.FC = () => {
                 if (subtaskError) console.error('Error adding subtasks:', subtaskError);
             }
         }
+        
+        // Explicitly refetch to ensure UI is up-to-date, making the app more robust.
+        await fetchProjects();
+
         setIsProjectModalOpen(false);
         setEditingProject(null);
         setPrefilledSubtasks([]);
