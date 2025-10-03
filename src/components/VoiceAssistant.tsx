@@ -214,8 +214,24 @@ const VoiceAssistant: React.FC = () => {
 
         inputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
         outputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+        
+        if (inputAudioContext.current.state === 'suspended') {
+            await inputAudioContext.current.resume();
+        }
+        if (outputAudioContext.current.state === 'suspended') {
+            await outputAudioContext.current.resume();
+        }
 
-        streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+        try {
+            streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (err) {
+            console.error("Error getting microphone access:", err);
+            setStatusMessage("Microphone access denied.");
+            addConversationTurn('system', "Error: Could not access the microphone. Please check your browser permissions.");
+            inputAudioContext.current?.close();
+            outputAudioContext.current?.close();
+            return;
+        }
 
         sessionPromise.current = ai.current.live.connect({
             model: 'gemini-2.5-flash-native-audio-preview-09-2025',
@@ -223,9 +239,18 @@ const VoiceAssistant: React.FC = () => {
                 onopen: () => {
                     setStatusMessage('Listening... Speak now.');
                     setIsListening(true);
-                    const source = inputAudioContext.current!.createMediaStreamSource(streamRef.current!);
-                    const scriptProcessor = inputAudioContext.current!.createScriptProcessor(4096, 1, 1);
+                    
+                    if (!inputAudioContext.current || !streamRef.current) {
+                        console.error("Audio context or stream is missing in onopen.");
+                        return;
+                    }
+
+                    const source = inputAudioContext.current.createMediaStreamSource(streamRef.current);
+                    const scriptProcessor = inputAudioContext.current.createScriptProcessor(4096, 1, 1);
                     audioProcessorRef.current = scriptProcessor;
+
+                    const muteNode = inputAudioContext.current.createGain();
+                    muteNode.gain.setValueAtTime(0, inputAudioContext.current.currentTime);
 
                     scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
                         const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
@@ -234,8 +259,10 @@ const VoiceAssistant: React.FC = () => {
                             session.sendRealtimeInput({ media: pcmBlob });
                         });
                     };
+                    
                     source.connect(scriptProcessor);
-                    scriptProcessor.connect(inputAudioContext.current!.destination);
+                    scriptProcessor.connect(muteNode);
+                    muteNode.connect(inputAudioContext.current.destination);
                 },
                 onmessage: async (message: LiveServerMessage) => {
                     if (message.serverContent?.inputTranscription) {
