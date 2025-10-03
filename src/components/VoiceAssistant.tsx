@@ -120,12 +120,13 @@ const functionDeclarations: FunctionDeclaration[] = [
 const VoiceAssistant: React.FC = () => {
     const [isAssistantOpen, setIsAssistantOpen] = useState(false);
     const [isListening, setIsListening] = useState(false);
-    const [statusMessage, setStatusMessage] = useState('Idle');
+    const [statusMessage, setStatusMessage] = useState('Click the mic to start');
     const [conversation, setConversation] = useState<{ speaker: 'user' | 'model' | 'system', text: string }[]>([]);
     
     const ai = useRef<GoogleGenAI | null>(null);
     const sessionPromise = useRef<Promise<LiveSession> | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
+    const mediaStreamSource = useRef<MediaStreamAudioSourceNode | null>(null);
     const audioProcessorRef = useRef<ScriptProcessorNode | null>(null);
 
     const inputAudioContext = useRef<AudioContext | null>(null);
@@ -159,29 +160,24 @@ const VoiceAssistant: React.FC = () => {
 
             switch (fc.name) {
                 case 'addProject':
-                    // FIX: Ensure the payload matches the Insert type for type safety.
                     const newProject: ProjectInsert = {...fc.args, status: ProjectStatus.Todo};
                     await supabase.from('projects').insert(newProject);
                     result = `Successfully added project: ${fc.args.name}`;
                     break;
                 case 'addSkill':
-                    // FIX: Ensure the payload matches the Insert type for type safety.
                     const newSkill: SkillInsert = fc.args;
                     await supabase.from('skills').insert(newSkill);
                     result = `Successfully added skill: ${fc.args.name}`;
                     break;
                 case 'addTransaction':
-                    // FIX: Ensure the payload matches the Insert type for type safety.
                     const newTransaction: TransactionInsert = fc.args;
                     await supabase.from('transactions').insert(newTransaction);
                     result = `Successfully logged transaction: ${fc.args.description}`;
                     break;
                 case 'addTodo':
-                    // FIX: Correctly type the response data to access properties safely.
                     const { data: todos } = await supabase.from('todos').select('position').order('position', { ascending: false }).limit(1);
                     const lastTodo = todos?.[0] as TodoRow | undefined;
                     const newPosition = lastTodo ? lastTodo.position + 1 : 0;
-                    // FIX: Ensure the payload matches the Insert type for type safety.
                     const newTodo: TodoInsert = { text: fc.args.text, completed: false, position: newPosition };
                     await supabase.from('todos').insert(newTodo);
                     result = `Successfully added to-do: ${fc.args.text}`;
@@ -198,59 +194,92 @@ const VoiceAssistant: React.FC = () => {
         session.sendToolResponse({ functionResponses: { id: fc.id, name: fc.name, response: { result: result } } });
     };
 
-    const startListening = async () => {
-        if (!ai.current) {
-            setStatusMessage("AI Client not initialized.");
-            return;
-        }
+    const stopListening = useCallback(() => {
+        setIsListening(prev => {
+            if (!prev && !streamRef.current) return prev;
+            
+            setStatusMessage('Click the mic to start');
+            
+            sessionPromise.current?.then(session => session.close()).catch(e => console.error("Error closing session:", e));
+            sessionPromise.current = null;
+
+            audioProcessorRef.current?.disconnect();
+            audioProcessorRef.current = null;
+            mediaStreamSource.current?.disconnect();
+            mediaStreamSource.current = null;
+            
+            streamRef.current?.getTracks().forEach(track => track.stop());
+            streamRef.current = null;
+            
+            if (outputAudioContext.current) {
+                for (const source of sources.current.values()) {
+                    try { source.stop(); } catch (e) { /* ignore error */ }
+                }
+                sources.current.clear();
+                nextStartTime.current = 0;
+            }
+
+            return false;
+        });
+    }, []);
+
+    const startListening = useCallback(async () => {
         if (isListening) return;
 
-        setStatusMessage('Connecting...');
+        if (!ai.current) {
+            setStatusMessage("AI Client not initialized.");
+            addConversationTurn('system', 'Error: AI Client is not ready. Check API Key.');
+            return;
+        }
+
+        setIsListening(true);
+        setStatusMessage('Initializing session...');
         setConversation([]);
         addConversationTurn('system', 'Starting voice session...');
         
         let currentInputTranscription = '';
         let currentOutputTranscription = '';
-
-        inputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-        outputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
         
-        if (inputAudioContext.current.state === 'suspended') {
-            await inputAudioContext.current.resume();
-        }
-        if (outputAudioContext.current.state === 'suspended') {
-            await outputAudioContext.current.resume();
-        }
-
         try {
-            streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-        } catch (err) {
-            console.error("Error getting microphone access:", err);
-            setStatusMessage("Microphone access denied.");
-            addConversationTurn('system', "Error: Could not access the microphone. Please check your browser permissions.");
-            inputAudioContext.current?.close();
-            outputAudioContext.current?.close();
+            if (!inputAudioContext.current) inputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            if (!outputAudioContext.current) outputAudioContext.current = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            
+            if (inputAudioContext.current.state === 'suspended') await inputAudioContext.current.resume();
+            if (outputAudioContext.current.state === 'suspended') await outputAudioContext.current.resume();
+        } catch (e: any) {
+            console.error("Error with AudioContext:", e);
+            setStatusMessage("Audio system error.");
+            addConversationTurn('system', `Error: Could not initialize audio system. ${e.message}`);
+            setIsListening(false);
             return;
         }
 
+        try {
+            setStatusMessage('Accessing microphone...');
+            streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
+            setStatusMessage('Microphone connected.');
+        } catch (err: any) {
+            console.error("Error getting microphone access:", err);
+            setStatusMessage("Microphone access denied.");
+            addConversationTurn('system', "Error: Could not access microphone. Please check browser permissions.");
+            setIsListening(false);
+            return;
+        }
+
+        setStatusMessage('Connecting to assistant...');
         sessionPromise.current = ai.current.live.connect({
             model: 'gemini-2.5-flash-native-audio-preview-09-2025',
             callbacks: {
                 onopen: () => {
                     setStatusMessage('Listening... Speak now.');
-                    setIsListening(true);
-                    
                     if (!inputAudioContext.current || !streamRef.current) {
                         console.error("Audio context or stream is missing in onopen.");
+                        stopListening();
                         return;
                     }
-
-                    const source = inputAudioContext.current.createMediaStreamSource(streamRef.current);
+                    mediaStreamSource.current = inputAudioContext.current.createMediaStreamSource(streamRef.current);
                     const scriptProcessor = inputAudioContext.current.createScriptProcessor(4096, 1, 1);
                     audioProcessorRef.current = scriptProcessor;
-
-                    const muteNode = inputAudioContext.current.createGain();
-                    muteNode.gain.setValueAtTime(0, inputAudioContext.current.currentTime);
 
                     scriptProcessor.onaudioprocess = (audioProcessingEvent) => {
                         const inputData = audioProcessingEvent.inputBuffer.getChannelData(0);
@@ -259,10 +288,8 @@ const VoiceAssistant: React.FC = () => {
                             session.sendRealtimeInput({ media: pcmBlob });
                         });
                     };
-                    
-                    source.connect(scriptProcessor);
-                    scriptProcessor.connect(muteNode);
-                    muteNode.connect(inputAudioContext.current.destination);
+                    mediaStreamSource.current.connect(scriptProcessor);
+                    scriptProcessor.connect(inputAudioContext.current.destination);
                 },
                 onmessage: async (message: LiveServerMessage) => {
                     if (message.serverContent?.inputTranscription) {
@@ -334,32 +361,14 @@ const VoiceAssistant: React.FC = () => {
                 systemInstruction: "You are a helpful assistant for a freelancer's dashboard. Your goal is to help the user manage their projects, skills, finances, and tasks. Be concise and clear. When a date is mentioned like 'next Friday' or 'end of the month', convert it to a YYYY-MM-DD format based on the current date. Today's date is " + new Date().toLocaleDateString('en-CA') + ".",
             },
         });
-    };
-
-    const stopListening = useCallback(() => {
-        if (!isListening && statusMessage === 'Idle') return;
         
-        setIsListening(false);
-        setStatusMessage('Idle');
-
-        sessionPromise.current?.then(session => session.close());
-        sessionPromise.current = null;
-
-        audioProcessorRef.current?.disconnect();
-        audioProcessorRef.current = null;
-        
-        streamRef.current?.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-        
-        inputAudioContext.current?.close();
-        outputAudioContext.current?.close();
-
-        for (const source of sources.current.values()) {
-            source.stop();
-        }
-        sources.current.clear();
-        nextStartTime.current = 0;
-    }, [isListening, statusMessage]);
+        sessionPromise.current.catch(err => {
+            console.error("Failed to connect to Gemini Live session:", err);
+            setStatusMessage("Connection failed.");
+            addConversationTurn('system', `Error: Could not connect to the voice assistant. ${err.message}`);
+            stopListening();
+        });
+    }, [isListening, stopListening]);
 
     const toggleListening = () => {
         if (isListening) {
