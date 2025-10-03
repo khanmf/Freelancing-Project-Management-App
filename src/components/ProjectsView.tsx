@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-// FIX: Import the Database type to use generated Supabase types directly.
 import { Project, ProjectStatus, ProjectCategory, Subtask, Database } from '../types';
 import { PROJECT_STATUSES, PROJECT_CATEGORIES } from '../constants';
 import { supabase } from '../supabaseClient';
 import Modal from './Modal';
-import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon } from './icons/Icons';
+import AIProjectModal from './AIProjectModal';
+import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon, SparklesIcon } from './icons/Icons';
 
-// FIX: Define type aliases for Insert/Update types for cleaner props.
 type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
 type SubtaskUpdate = Database['public']['Tables']['subtasks']['Update'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
@@ -44,18 +43,33 @@ const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Pick<Su
 
 
 // Project Form
-const ProjectForm: React.FC<{ project: Project | null; onSave: (project: ProjectInsert) => void; onCancel: () => void; }> = ({ project, onSave, onCancel }) => {
-    const [formData, setFormData] = useState<ProjectInsert>({
+const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project, newSubtasks: Pick<Subtask, 'name'| 'status'>[]) => void; onCancel: () => void; prefilledSubtasks?: string[] }> = ({ project, onSave, onCancel, prefilledSubtasks = [] }) => {
+    const [formData, setFormData] = useState<Omit<Project, 'id' | 'subtasks' | 'created_at'>>({
         name: project?.name || '',
         client: project?.client || '',
         deadline: project?.deadline || '',
         status: project?.status as ProjectStatus || ProjectStatus.Todo,
         category: project?.category as ProjectCategory || ProjectCategory.Others,
     });
+    const [subtasks, setSubtasks] = useState<string[]>(project?.subtasks.map(st => st.name) || prefilledSubtasks);
+    const [newSubtask, setNewSubtask] = useState('');
+
+    const handleAddSubtask = () => {
+        if (newSubtask.trim()) {
+            setSubtasks([...subtasks, newSubtask.trim()]);
+            setNewSubtask('');
+        }
+    };
+    
+    const handleDeleteSubtask = (index: number) => {
+        setSubtasks(subtasks.filter((_, i) => i !== index));
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave(formData);
+        const finalProject = { ...formData, id: project?.id || '', created_at: project?.created_at || null, subtasks: [] };
+        const newSubtaskObjects = subtasks.map(name => ({ name, status: ProjectStatus.Todo }));
+        onSave(finalProject, newSubtaskObjects);
     };
 
     return (
@@ -69,6 +83,23 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
             <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as ProjectStatus })} className="block w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white">
                 {PROJECT_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
             </select>
+            
+            <div>
+              <h4 className="text-md font-medium text-gray-300 mb-2">Subtasks</h4>
+              <div className="space-y-2">
+                {subtasks.map((name, index) => (
+                    <div key={index} className="flex items-center bg-gray-600 p-2 rounded">
+                        <span className="text-white flex-1">{name}</span>
+                        <button type="button" onClick={() => handleDeleteSubtask(index)} className="text-gray-400 hover:text-red-500"><TrashIcon className="h-4 w-4"/></button>
+                    </div>
+                ))}
+              </div>
+              <div className="flex mt-2 space-x-2">
+                  <input type="text" value={newSubtask} onChange={e => setNewSubtask(e.target.value)} placeholder="New subtask name" className="block w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white" />
+                  <button type="button" onClick={handleAddSubtask} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Add</button>
+              </div>
+            </div>
+
             <div className="flex justify-end space-x-2 pt-4">
                 <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700">Save Project</button>
@@ -83,7 +114,6 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
     const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
     const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
 
-    // FIX: Use the specific 'Insert'/'Update' types for the subtask payload.
     const handleSaveSubtask = async (subtaskData: Pick<SubtaskInsert, 'name' | 'status'>) => {
         if (editingSubtask) {
             const subtaskUpdate: SubtaskUpdate = subtaskData;
@@ -94,8 +124,6 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
             const { error } = await supabase.from('subtasks').insert(subtaskInsert);
             if(error) console.error("Error creating subtask", error);
         }
-        // onSubtaskChange is now handled by realtime, but we can call it for immediate feedback if needed
-        // onSubtaskChange(); 
         setIsSubtaskModalOpen(false);
         setEditingSubtask(null);
     };
@@ -158,6 +186,8 @@ const ProjectsView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
     const [editingProject, setEditingProject] = useState<Project | null>(null);
+    const [isAIModalOpen, setIsAIModalOpen] = useState(false);
+    const [prefilledSubtasks, setPrefilledSubtasks] = useState<string[]>([]);
 
     const fetchProjects = useCallback(async () => {
         const { data, error } = await supabase
@@ -190,40 +220,79 @@ const ProjectsView: React.FC = () => {
     }, [fetchProjects]);
 
 
-    // FIX: Use the specific 'Insert'/'Update' types for the project payload.
-    const handleSaveProject = async (projectData: ProjectInsert) => {
+    const handleSaveProject = async (projectData: Project, newSubtasks: Pick<Subtask, 'name'| 'status'>[]) => {
+        const projectPayload: ProjectInsert = {
+            name: projectData.name,
+            client: projectData.client,
+            deadline: projectData.deadline,
+            status: projectData.status,
+            category: projectData.category,
+        };
+
         if (editingProject) {
-            const projectUpdate: ProjectUpdate = projectData;
-            const { error } = await supabase.from('projects').update(projectUpdate).eq('id', editingProject.id);
+            const { error } = await supabase.from('projects').update(projectPayload).eq('id', editingProject.id);
             if (error) console.error('Error updating project:', error);
+            // In a real app, you might want to diff subtasks. For simplicity, we just add new ones.
         } else {
-            const { error } = await supabase.from('projects').insert(projectData);
-            if (error) console.error('Error creating project:', error);
+            const { data, error } = await supabase.from('projects').insert(projectPayload).select().single();
+            if (error) {
+                 console.error('Error creating project:', error);
+            } else if (data && newSubtasks.length > 0) {
+                const subtasksToInsert = newSubtasks.map(st => ({...st, project_id: data.id}));
+                const { error: subtaskError } = await supabase.from('subtasks').insert(subtasksToInsert);
+                if (subtaskError) console.error('Error adding subtasks:', subtaskError);
+            }
         }
         setIsProjectModalOpen(false);
         setEditingProject(null);
+        setPrefilledSubtasks([]);
     };
 
     const handleDeleteProject = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this project and all its subtasks?')) {
-            const { error: subtaskError } = await supabase.from('subtasks').delete().eq('project_id', id);
-            if (subtaskError) {
-                console.error('Error deleting subtasks:', subtaskError);
-                return;
-            }
+            // Supabase is configured with cascading delete, so this is sufficient.
             const { error } = await supabase.from('projects').delete().eq('id', id);
             if (error) console.error('Error deleting project:', error);
         }
     };
 
+    const handleOpenManualAdd = () => {
+        setEditingProject(null);
+        setPrefilledSubtasks([]);
+        setIsProjectModalOpen(true);
+    }
+
+    const handleAIProjectGenerated = (data: { name: string, client: string, deadline: string, category: ProjectCategory, subtasks: string[] }) => {
+        setEditingProject({
+            id: '',
+            name: data.name,
+            client: data.client,
+            deadline: data.deadline,
+            category: data.category,
+            status: ProjectStatus.Todo,
+            created_at: null,
+            subtasks: [],
+        });
+        setPrefilledSubtasks(data.subtasks);
+        setIsAIModalOpen(false);
+        setIsProjectModalOpen(true);
+    };
+
+
     if (loading) return <div className="text-center p-8">Loading projects...</div>;
 
     return (
         <div className="space-y-6">
-             <button onClick={() => { setEditingProject(null); setIsProjectModalOpen(true); }} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500">
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Add New Project
-            </button>
+            <div className="flex space-x-2">
+                 <button onClick={handleOpenManualAdd} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500">
+                    <PlusIcon className="h-5 w-5 mr-2" />
+                    Add New Project
+                </button>
+                 <button onClick={() => setIsAIModalOpen(true)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-indigo-300 bg-indigo-500/20 hover:bg-indigo-500/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500">
+                    <SparklesIcon className="h-5 w-5 mr-2" />
+                    Add with AI
+                </button>
+            </div>
             <div className="space-y-8">
                 {PROJECT_CATEGORIES.map(category => {
                     const categoryProjects = projects.filter(p => p.category === category);
@@ -241,9 +310,12 @@ const ProjectsView: React.FC = () => {
                 })}
             </div>
             
-            <Modal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} title={editingProject ? "Edit Project" : "Add Project"}>
-                <ProjectForm project={editingProject} onSave={handleSaveProject} onCancel={() => setIsProjectModalOpen(false)} />
+            <Modal isOpen={isProjectModalOpen} onClose={() => setIsProjectModalOpen(false)} title={editingProject?.id ? "Edit Project" : "Add Project"}>
+                <ProjectForm project={editingProject} onSave={handleSaveProject} onCancel={() => setIsProjectModalOpen(false)} prefilledSubtasks={prefilledSubtasks} />
             </Modal>
+
+            <AIProjectModal isOpen={isAIModalOpen} onClose={() => setIsAIModalOpen(false)} onProjectGenerated={handleAIProjectGenerated}/>
+
         </div>
     );
 };
