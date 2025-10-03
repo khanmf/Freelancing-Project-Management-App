@@ -1,0 +1,10 @@
+<svg width="256" height="256" viewBox="0 0 256 256" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect width="256" height="256" rx="60" fill="#1F2937"/>
+    <path d="M80 72V184H108V136H152C172.957 136 190 118.957 190 98V90C190 69.043 172.957 52 152 52H80V72ZM108 72H152C161.941 72 170 80.059 170 90V98C170 107.941 161.941 116 152 116H108V72Z" fill="url(#monogramGradient)"/>
+    <defs>
+        <linearGradient id="monogramGradient" x1="80" y1="52" x2="190" y2="184" gradientUnits="userSpaceOnUse">
+            <stop stop-color="#4F46E5"/>
+            <stop offset="1" stop-color="#A5B4FC"/>
+        </linearGradient>
+    </defs>
+</svg>
