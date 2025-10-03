@@ -134,8 +134,9 @@ const VoiceAssistant: React.FC = () => {
     const sources = useRef(new Set<AudioBufferSourceNode>());
 
     useEffect(() => {
-        if (process.env.API_KEY) {
-            ai.current = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const apiKey = process.env.API_KEY;
+        if (apiKey) {
+            ai.current = new GoogleGenAI({ apiKey: apiKey });
         } else {
             console.error("API_KEY environment variable not set.");
             setStatusMessage("API Key not found.");
