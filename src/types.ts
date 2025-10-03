@@ -11,12 +11,6 @@ export enum ProjectStatus {
   Done = 'Done',
 }
 
-export interface Subtask {
-  id: string;
-  name: string;
-  status: ProjectStatus;
-}
-
 export enum ProjectCategory {
   AppDev = 'App Development',
   AI = 'AI Automation',
@@ -26,27 +20,10 @@ export enum ProjectCategory {
   Others = 'Others',
 }
 
-export interface Project {
-  id: string;
-  name: string;
-  client: string;
-  deadline: string;
-  status: ProjectStatus;
-  category: ProjectCategory;
-  subtasks: Subtask[];
-}
-
 export enum SkillStatus {
   Learning = 'Learning',
   Practicing = 'Practicing',
   Mastered = 'Mastered',
-}
-
-export interface SubSkill {
-  id: string;
-  name: string;
-  deadline: string;
-  status: SkillStatus;
 }
 
 export enum SkillCategory {
@@ -58,23 +35,173 @@ export enum SkillCategory {
   Others = 'Others',
 }
 
-export type Skills = Record<SkillCategory, SubSkill[]>;
-
 export enum TransactionType {
     Income = 'income',
     Expense = 'expense',
 }
 
-export interface Transaction {
-    id: string;
-    description: string;
-    amount: number;
-    date: string;
-    type: TransactionType;
+// These types are generated from the Supabase schema.
+// A good practice would be to use Supabase CLI to generate these automatically.
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
+export interface Database {
+  public: {
+    Tables: {
+      projects: {
+        Row: {
+          id: string
+          name: string
+          client: string
+          deadline: string
+          status: string
+          category: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          client: string
+          deadline: string
+          status: string
+          category: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          client?: string
+          deadline?: string
+          status?: string
+          category?: string
+          created_at?: string | null
+        }
+      }
+      subtasks: {
+        Row: {
+          id: string
+          name: string
+          status: string
+          project_id: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          status: string
+          project_id?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          status?: string
+          project_id?: string | null
+          created_at?: string | null
+        }
+      }
+      skills: {
+        Row: {
+          id: string
+          name: string
+          deadline: string
+          status: string
+          category: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          deadline: string
+          status: string
+          category: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          deadline?: string
+          status?: string
+          category?: string
+          created_at?: string | null
+        }
+      }
+      transactions: {
+        Row: {
+          id: string
+          description: string
+          amount: number
+          date: string
+          type: string
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          description: string
+          amount: number
+          date: string
+          type: string
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          description?: string
+          amount?: number
+          date?: string
+          type?: string
+          created_at?: string | null
+        }
+      }
+      todos: {
+        Row: {
+          id: string
+          text: string
+          completed: boolean | null
+          position: number
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          text: string
+          completed?: boolean | null
+          position: number
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          text?: string
+          completed?: boolean | null
+          position?: number
+          created_at?: string | null
+        }
+      }
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      [_ in never]: never
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
 }
 
-export interface Todo {
-    id: string;
-    text: string;
-    completed: boolean;
-}
+// Custom application types that may extend or combine the DB types
+export type Project = Database['public']['Tables']['projects']['Row'] & {
+  subtasks: Subtask[];
+};
+export type Subtask = Database['public']['Tables']['subtasks']['Row'];
+export type Skill = Database['public']['Tables']['skills']['Row'];
+export type Skills = Record<SkillCategory, Skill[]>;
+export type Transaction = Database['public']['Tables']['transactions']['Row'];
+export type Todo = Database['public']['Tables']['todos']['Row'];

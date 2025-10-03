@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Todo } from '../types';
-import useLocalStorage from '../hooks/useLocalStorage';
+import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Import the Database type to use generated Supabase types directly.
+import { Todo, Database } from '../types';
+import { supabase } from '../supabaseClient';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 
@@ -26,41 +27,94 @@ const TodoForm: React.FC<{ todo: Todo | null; onSave: (text: string) => void; on
 };
 
 const TodosView: React.FC = () => {
-    const [todos, setTodos] = useLocalStorage<Todo[]>('todos', []);
+    const [todos, setTodos] = useState<Todo[]>([]);
+    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
 
-    const handleSaveTodo = (text: string) => {
-        if (editingTodo) {
-            setTodos(todos.map(t => t.id === editingTodo.id ? { ...t, text } : t));
+    const fetchTodos = useCallback(async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('todos')
+            .select('*')
+            .order('position', { ascending: true });
+        
+        if (error) {
+            console.error("Error fetching todos:", error);
         } else {
-            setTodos([...todos, { id: Date.now().toString(), text, completed: false }]);
+            setTodos(data || []);
         }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchTodos();
+    }, [fetchTodos]);
+
+
+    const handleSaveTodo = async (text: string) => {
+        if (editingTodo) {
+            // FIX: Ensure payload conforms to the 'Update' type.
+            const { error } = await supabase.from('todos').update({ text }).eq('id', editingTodo.id);
+            if(error) console.error("Error updating todo:", error)
+        } else {
+            const newPosition = todos.length > 0 ? Math.max(...todos.map(t => t.position)) + 1 : 0;
+            // FIX: Ensure payload conforms to the 'Insert' type.
+            const { error } = await supabase.from('todos').insert({ text, completed: false, position: newPosition });
+            if(error) console.error("Error adding todo:", error)
+        }
+        await fetchTodos();
         setIsModalOpen(false);
         setEditingTodo(null);
     };
 
-    const toggleTodo = (id: string) => {
-        setTodos(todos.map(t => t.id === id ? { ...t, completed: !t.completed } : t));
+    const toggleTodo = async (id: string, currentStatus: boolean) => {
+        // FIX: Ensure payload conforms to the 'Update' type.
+        const { error } = await supabase.from('todos').update({ completed: !currentStatus }).eq('id', id);
+        if(error) console.error("Error toggling todo:", error)
+        else await fetchTodos();
     };
 
-    const deleteTodo = (id: string) => {
+    const deleteTodo = async (id: string) => {
         if(window.confirm('Delete this task?')) {
-            setTodos(todos.filter(t => t.id !== id));
+            const { error } = await supabase.from('todos').delete().eq('id', id);
+            if(error) console.error("Error deleting todo:", error)
+            else await fetchTodos();
         }
     };
 
-    const moveTodo = (index: number, direction: 'up' | 'down') => {
+    const moveTodo = async (index: number, direction: 'up' | 'down') => {
         if (direction === 'up' && index === 0) return;
         if (direction === 'down' && index === todos.length - 1) return;
         
         const newTodos = [...todos];
         const item = newTodos[index];
         const swapIndex = direction === 'up' ? index - 1 : index + 1;
+        
+        // Swap items
         newTodos[index] = newTodos[swapIndex];
         newTodos[swapIndex] = item;
-        setTodos(newTodos);
+
+        // Create an array of updates
+        // FIX: Ensure the update payload conforms to the 'Update' type for upsert.
+        const updates: Database['public']['Tables']['todos']['Update'][] = newTodos.map((todo, i) => ({
+            id: todo.id,
+            position: i
+        }));
+
+        const { error } = await supabase.from('todos').upsert(updates);
+
+        if (error) {
+            console.error("Error reordering todos:", error);
+            // If error, refetch to revert optimistic update
+            await fetchTodos();
+        } else {
+            // Optimistically update UI to avoid waiting for refetch
+            setTodos(newTodos);
+        }
     };
+
+    if (loading) return <div className="text-center p-8">Loading tasks...</div>;
 
     return (
         <div className="space-y-6">
@@ -72,7 +126,7 @@ const TodosView: React.FC = () => {
                 <div className="space-y-3">
                     {todos.map((todo, index) => (
                         <div key={todo.id} className="flex items-center bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group">
-                            <input type="checkbox" checked={todo.completed} onChange={() => toggleTodo(todo.id)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                            <input type="checkbox" checked={todo.completed || false} onChange={() => toggleTodo(todo.id, todo.completed || false)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
                             <span className={`ml-3 flex-1 text-white ${todo.completed ? 'line-through text-gray-500' : ''}`}>{todo.text}</span>
                             <div className="flex items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button onClick={() => moveTodo(index, 'up')} disabled={index === 0} className="text-gray-400 hover:text-white disabled:opacity-30"><ArrowUpIcon className="h-5 w-5" /></button>

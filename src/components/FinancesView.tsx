@@ -1,15 +1,20 @@
-import React, { useState, useMemo } from 'react';
-import { Transaction, TransactionType } from '../types';
-import useLocalStorage from '../hooks/useLocalStorage';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+// FIX: Import the Database type to use generated Supabase types directly.
+import { Transaction, TransactionType, Database } from '../types';
+import { supabase } from '../supabaseClient';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, TrendingUpIcon, TrendingDownIcon, ScaleIcon } from './icons/Icons';
 
+// FIX: Define a type alias for the Insert type for cleaner props.
+type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
+
 const TransactionForm: React.FC<{
   transaction: Transaction | null;
-  onSave: (transaction: Transaction) => void;
+  // FIX: Use the specific 'Insert' type for the onSave payload to ensure type safety.
+  onSave: (transaction: TransactionInsert) => void;
   onCancel: () => void;
 }> = ({ transaction, onSave, onCancel }) => {
-  const [formData, setFormData] = useState<Omit<Transaction, 'id'>>({
+  const [formData, setFormData] = useState<TransactionInsert>({
     description: transaction?.description || '',
     amount: transaction?.amount || 0,
     date: transaction?.date || new Date().toISOString().split('T')[0],
@@ -18,7 +23,7 @@ const TransactionForm: React.FC<{
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ ...formData, amount: Number(formData.amount), id: transaction?.id || Date.now().toString() });
+    onSave({ ...formData, amount: Number(formData.amount)});
   };
 
   return (
@@ -51,11 +56,30 @@ const TransactionForm: React.FC<{
 };
 
 const FinancesView: React.FC = () => {
-    const [transactions, setTransactions] = useLocalStorage<Transaction[]>('transactions', []);
+    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [filterMonth, setFilterMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM format
     const [sortConfig, setSortConfig] = useState<{ key: keyof Transaction; direction: 'asc' | 'desc' } | null>(null);
+
+    const fetchTransactions = useCallback(async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('transactions')
+            .select('*');
+
+        if (error) {
+            console.error("Error fetching transactions:", error);
+        } else {
+            setTransactions(data || []);
+        }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchTransactions();
+    }, [fetchTransactions]);
 
     const filteredTransactions = useMemo(() => {
         return transactions.filter(t => t.date.startsWith(filterMonth));
@@ -93,14 +117,24 @@ const FinancesView: React.FC = () => {
     
     const handleAddTransaction = () => { setIsModalOpen(true); setEditingTransaction(null); };
     const handleEditTransaction = (transaction: Transaction) => { setIsModalOpen(true); setEditingTransaction(transaction); };
-    const handleDeleteTransaction = (id: string) => { if(window.confirm('Delete this transaction?')) { setTransactions(transactions.filter(t => t.id !== id)); }};
-    
-    const handleSaveTransaction = (transaction: Transaction) => {
-        if (editingTransaction) {
-            setTransactions(transactions.map(t => t.id === transaction.id ? transaction : t));
-        } else {
-            setTransactions([...transactions, transaction]);
+    const handleDeleteTransaction = async (id: string) => { 
+        if(window.confirm('Delete this transaction?')) { 
+            const { error } = await supabase.from('transactions').delete().eq('id', id);
+            if (error) console.error("Error deleting transaction", error);
+            else await fetchTransactions();
         }
+    };
+    
+    // FIX: Use the specific 'Insert' type for the transaction payload.
+    const handleSaveTransaction = async (transaction: TransactionInsert) => {
+        if (editingTransaction) {
+            const { error } = await supabase.from('transactions').update(transaction).eq('id', editingTransaction.id);
+            if(error) console.error("Error updating transaction", error);
+        } else {
+            const { error } = await supabase.from('transactions').insert(transaction);
+            if(error) console.error("Error adding transaction", error);
+        }
+        await fetchTransactions();
         setIsModalOpen(false);
         setEditingTransaction(null);
     };
@@ -109,6 +143,8 @@ const FinancesView: React.FC = () => {
     
     const incomeTransactions = sortedTransactions.filter(t => t.type === TransactionType.Income);
     const expenseTransactions = sortedTransactions.filter(t => t.type === TransactionType.Expense);
+
+    if (loading) return <div className="text-center p-8">Loading finances...</div>;
 
     return (
       <div className="space-y-6">

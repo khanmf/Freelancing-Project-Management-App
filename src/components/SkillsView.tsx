@@ -1,24 +1,29 @@
-import React, { useState } from 'react';
-import { SubSkill, SkillCategory, SkillStatus, Skills } from '../types';
-import useLocalStorage from '../hooks/useLocalStorage';
-import { SKILL_CATEGORIES, SKILL_STATUSES, INITIAL_SKILLS } from '../constants';
+import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Import the Database type to use generated Supabase types directly.
+import { Skill, SkillCategory, SkillStatus, Skills, Database } from '../types';
+import { supabase } from '../supabaseClient';
+import { SKILL_CATEGORIES, SKILL_STATUSES } from '../constants';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon } from './icons/Icons';
 
-const SubSkillForm: React.FC<{
-  subSkill: SubSkill | null;
-  onSave: (subSkill: SubSkill) => void;
+// FIX: Define a type alias for the Insert type for cleaner props.
+type SkillInsert = Database['public']['Tables']['skills']['Insert'];
+
+const SkillForm: React.FC<{
+  skill: Skill | null;
+  // FIX: Use a specific payload type for the onSave handler.
+  onSave: (skill: Omit<SkillInsert, 'category'>) => void;
   onCancel: () => void;
-}> = ({ subSkill, onSave, onCancel }) => {
-  const [formData, setFormData] = useState<Omit<SubSkill, 'id'>>({
-    name: subSkill?.name || '',
-    deadline: subSkill?.deadline || '',
-    status: subSkill?.status || SkillStatus.Learning,
+}> = ({ skill, onSave, onCancel }) => {
+  const [formData, setFormData] = useState({
+    name: skill?.name || '',
+    deadline: skill?.deadline || '',
+    status: skill?.status as SkillStatus || SkillStatus.Learning,
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave({ ...formData, id: subSkill?.id || Date.now().toString() });
+    onSave(formData);
   };
 
   return (
@@ -48,14 +53,14 @@ const SubSkillForm: React.FC<{
 
 const SkillCategoryAccordion: React.FC<{
   category: SkillCategory;
-  subSkills: SubSkill[];
+  skills: Skill[];
   onAdd: (category: SkillCategory) => void;
-  onEdit: (category: SkillCategory, subSkill: SubSkill) => void;
-  onDelete: (category: SkillCategory, id: string) => void;
-}> = ({ category, subSkills, onAdd, onEdit, onDelete }) => {
+  onEdit: (category: SkillCategory, skill: Skill) => void;
+  onDelete: (id: string) => void;
+}> = ({ category, skills, onAdd, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(true);
 
-  const getStatusColor = (status: SkillStatus) => {
+  const getStatusColor = (status: string) => {
     switch(status) {
       case SkillStatus.Learning: return 'border-l-4 border-blue-500';
       case SkillStatus.Practicing: return 'border-l-4 border-yellow-500';
@@ -73,18 +78,18 @@ const SkillCategoryAccordion: React.FC<{
         <div className="p-4 border-t border-gray-700">
           <button onClick={() => onAdd(category)} className="mb-4 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700">
             <PlusIcon className="h-4 w-4 mr-2" />
-            Add Sub-Skill
+            Add Skill
           </button>
           <div className="space-y-3">
-            {subSkills.length > 0 ? subSkills.map(subSkill => (
-              <div key={subSkill.id} className={`flex justify-between items-center bg-gray-700 p-3 rounded ${getStatusColor(subSkill.status)}`}>
+            {skills.length > 0 ? skills.map(skill => (
+              <div key={skill.id} className={`flex justify-between items-center bg-gray-700 p-3 rounded ${getStatusColor(skill.status)}`}>
                 <div>
-                  <p className="font-semibold text-white">{subSkill.name}</p>
-                  <p className="text-sm text-gray-400">Target: {subSkill.deadline} - <span className="font-medium">{subSkill.status}</span></p>
+                  <p className="font-semibold text-white">{skill.name}</p>
+                  <p className="text-sm text-gray-400">Target: {skill.deadline} - <span className="font-medium">{skill.status}</span></p>
                 </div>
                 <div className="flex space-x-2">
-                  <button onClick={() => onEdit(category, subSkill)} className="text-gray-400 hover:text-white"><PencilIcon className="h-5 w-5" /></button>
-                  <button onClick={() => onDelete(category, subSkill.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="h-5 w-5" /></button>
+                  <button onClick={() => onEdit(category, skill)} className="text-gray-400 hover:text-white"><PencilIcon className="h-5 w-5" /></button>
+                  <button onClick={() => onDelete(skill.id)} className="text-gray-400 hover:text-red-500"><TrashIcon className="h-5 w-5" /></button>
                 </div>
               </div>
             )) : <p className="text-gray-500 italic">No skills added yet.</p>}
@@ -97,44 +102,74 @@ const SkillCategoryAccordion: React.FC<{
 
 
 const SkillsView: React.FC = () => {
-    const [skills, setSkills] = useLocalStorage<Skills>('skills', INITIAL_SKILLS);
+    const [skills, setSkills] = useState<Skills>({} as Skills);
+    const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingSkill, setEditingSkill] = useState<{ category: SkillCategory; subSkill: SubSkill | null } | null>(null);
+    const [editingSkill, setEditingSkill] = useState<{ category: SkillCategory; skill: Skill | null } | null>(null);
 
-    const handleAddSubSkill = (category: SkillCategory) => {
-        setEditingSkill({ category, subSkill: null });
+    const fetchSkills = useCallback(async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('skills')
+            .select('*')
+            .order('created_at', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching skills:', error);
+        } else {
+            const groupedSkills = (data || []).reduce((acc, skill) => {
+                const category = skill.category as SkillCategory;
+                if (!acc[category]) {
+                    acc[category] = [];
+                }
+                acc[category].push(skill);
+                return acc;
+            }, {} as Skills);
+            setSkills(groupedSkills);
+        }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchSkills();
+    }, [fetchSkills]);
+
+    const handleAddSkill = (category: SkillCategory) => {
+        setEditingSkill({ category, skill: null });
         setIsModalOpen(true);
     };
 
-    const handleEditSubSkill = (category: SkillCategory, subSkill: SubSkill) => {
-        setEditingSkill({ category, subSkill });
+    const handleEditSkill = (category: SkillCategory, skill: Skill) => {
+        setEditingSkill({ category, skill });
         setIsModalOpen(true);
     };
 
-    const handleDeleteSubSkill = (category: SkillCategory, id: string) => {
+    const handleDeleteSkill = async (id: string) => {
         if(window.confirm('Are you sure you want to delete this skill?')) {
-            const updatedSkills = {
-                ...skills,
-                [category]: skills[category].filter(s => s.id !== id),
-            };
-            setSkills(updatedSkills);
+            const { error } = await supabase.from('skills').delete().eq('id', id);
+            if (error) console.error("Error deleting skill:", error);
+            else await fetchSkills();
         }
     };
 
-    const handleSaveSubSkill = (subSkill: SubSkill) => {
+    // FIX: Use a specific payload type for the save handler.
+    const handleSaveSkill = async (skillData: Omit<SkillInsert, 'category'>) => {
         if (editingSkill) {
-            const { category } = editingSkill;
-            let updatedSubSkills;
-            if (editingSkill.subSkill) { // Editing existing
-                updatedSubSkills = skills[category].map(s => s.id === subSkill.id ? subSkill : s);
+            const { category, skill } = editingSkill;
+            if (skill) { // Editing existing
+                const { error } = await supabase.from('skills').update(skillData).eq('id', skill.id);
+                if(error) console.error("Error updating skill:", error);
             } else { // Adding new
-                updatedSubSkills = [...skills[category], subSkill];
+                const { error } = await supabase.from('skills').insert({ ...skillData, category });
+                if(error) console.error("Error adding skill:", error);
             }
-            setSkills({ ...skills, [category]: updatedSubSkills });
         }
+        await fetchSkills();
         setIsModalOpen(false);
         setEditingSkill(null);
     };
+
+    if (loading) return <div className="text-center p-8">Loading skills...</div>;
 
     return (
         <div className="space-y-6">
@@ -143,22 +178,22 @@ const SkillsView: React.FC = () => {
                     <SkillCategoryAccordion 
                         key={category} 
                         category={category} 
-                        subSkills={skills[category] || []}
-                        onAdd={handleAddSubSkill}
-                        onEdit={handleEditSubSkill}
-                        onDelete={handleDeleteSubSkill}
+                        skills={skills[category] || []}
+                        onAdd={handleAddSkill}
+                        onEdit={handleEditSkill}
+                        onDelete={handleDeleteSkill}
                     />
                 ))}
             </div>
             <Modal 
                 isOpen={isModalOpen} 
                 onClose={() => setIsModalOpen(false)} 
-                title={editingSkill?.subSkill ? `Edit Skill in ${editingSkill.category}` : `Add Skill to ${editingSkill?.category}`}
+                title={editingSkill?.skill ? `Edit Skill in ${editingSkill.category}` : `Add Skill to ${editingSkill?.category}`}
             >
                 {editingSkill && (
-                    <SubSkillForm 
-                        subSkill={editingSkill.subSkill} 
-                        onSave={handleSaveSubSkill} 
+                    <SkillForm 
+                        skill={editingSkill.skill} 
+                        onSave={handleSaveSkill} 
                         onCancel={() => setIsModalOpen(false)} 
                     />
                 )}

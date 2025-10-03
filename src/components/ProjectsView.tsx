@@ -1,14 +1,19 @@
-import React, { useState } from 'react';
-import { Project, ProjectStatus, ProjectCategory, Subtask } from '../types';
+import React, { useState, useEffect, useCallback } from 'react';
+// FIX: Import the Database type to use generated Supabase types directly.
+import { Project, ProjectStatus, ProjectCategory, Subtask, Database } from '../types';
 import { PROJECT_STATUSES, PROJECT_CATEGORIES } from '../constants';
-import useLocalStorage from '../hooks/useLocalStorage';
+import { supabase } from '../supabaseClient';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon } from './icons/Icons';
 
+// FIX: Define type aliases for Insert types for cleaner props.
+type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
+type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
+
 // Subtask Form
-const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Omit<Subtask, 'id'>) => void; onCancel: () => void; }> = ({ subtask, onSave, onCancel }) => {
+const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Pick<SubtaskInsert, 'name' | 'status'>) => void; onCancel: () => void; }> = ({ subtask, onSave, onCancel }) => {
     const [name, setName] = useState(subtask?.name || '');
-    const [status, setStatus] = useState(subtask?.status || ProjectStatus.Todo);
+    const [status, setStatus] = useState(subtask?.status as ProjectStatus || ProjectStatus.Todo);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -37,18 +42,18 @@ const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Omit<Su
 
 
 // Project Form
-const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project) => void; onCancel: () => void; }> = ({ project, onSave, onCancel }) => {
-    const [formData, setFormData] = useState<Omit<Project, 'id' | 'subtasks'>>({
+const ProjectForm: React.FC<{ project: Project | null; onSave: (project: ProjectInsert) => void; onCancel: () => void; }> = ({ project, onSave, onCancel }) => {
+    const [formData, setFormData] = useState<ProjectInsert>({
         name: project?.name || '',
         client: project?.client || '',
         deadline: project?.deadline || '',
-        status: project?.status || ProjectStatus.Todo,
-        category: project?.category || ProjectCategory.Others,
+        status: project?.status as ProjectStatus || ProjectStatus.Todo,
+        category: project?.category as ProjectCategory || ProjectCategory.Others,
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ ...formData, id: project?.id || Date.now().toString(), subtasks: project?.subtasks || [] });
+        onSave(formData);
     };
 
     return (
@@ -71,31 +76,34 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
 };
 
 // Project Card (Collapsible)
-const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => void; onDelete: (id: string) => void; onSubtaskChange: (projectId: string, subtasks: Subtask[]) => void; }> = ({ project, onEdit, onDelete, onSubtaskChange }) => {
+const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => void; onDelete: (id: string) => void; onSubtaskChange: () => void; }> = ({ project, onEdit, onDelete, onSubtaskChange }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
     const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
 
-    const handleSaveSubtask = (subtaskData: Omit<Subtask, 'id'>) => {
-        let newSubtasks;
+    // FIX: Use the specific 'Insert' type for the subtask payload.
+    const handleSaveSubtask = async (subtaskData: Pick<SubtaskInsert, 'name' | 'status'>) => {
         if (editingSubtask) {
-            newSubtasks = project.subtasks.map(st => st.id === editingSubtask.id ? { ...editingSubtask, ...subtaskData } : st);
+            const { error } = await supabase.from('subtasks').update(subtaskData).eq('id', editingSubtask.id);
+            if(error) console.error("Error updating subtask", error);
         } else {
-            newSubtasks = [...project.subtasks, { ...subtaskData, id: Date.now().toString() }];
+            const { error } = await supabase.from('subtasks').insert({ ...subtaskData, project_id: project.id });
+            if(error) console.error("Error creating subtask", error);
         }
-        onSubtaskChange(project.id, newSubtasks);
+        onSubtaskChange();
         setIsSubtaskModalOpen(false);
         setEditingSubtask(null);
     };
 
-    const handleDeleteSubtask = (subtaskId: string) => {
+    const handleDeleteSubtask = async (subtaskId: string) => {
         if(window.confirm('Delete this subtask?')) {
-            const newSubtasks = project.subtasks.filter(st => st.id !== subtaskId);
-            onSubtaskChange(project.id, newSubtasks);
+            const { error } = await supabase.from('subtasks').delete().eq('id', subtaskId);
+            if(error) console.error("Error deleting subtask", error);
+            else onSubtaskChange();
         }
     };
     
-    const getStatusColor = (status: ProjectStatus) => {
+    const getStatusColor = (status: string) => {
         switch (status) {
           case ProjectStatus.Todo: return 'border-yellow-500';
           case ProjectStatus.InProgress: return 'border-blue-500';
@@ -105,14 +113,14 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
 
     return (
         <div className="bg-gray-800 rounded-lg border border-gray-700">
-            <div className="flex items-center p-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+            <button aria-expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} className="w-full flex items-center p-4 text-left">
                 <div className={`w-2 h-10 rounded-full mr-4 ${getStatusColor(project.status)}`}></div>
                 <div className="flex-1">
                     <h4 className="font-bold text-white">{project.name}</h4>
                     <p className="text-sm text-gray-400">{project.client} - Deadline: {project.deadline}</p>
                 </div>
                 <ChevronDownIcon className={`h-6 w-6 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-            </div>
+            </button>
             {isExpanded && (
                 <div className="p-4 border-t border-gray-700 space-y-3">
                      <div className="flex justify-end space-x-2 mb-4">
@@ -129,7 +137,8 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
                            </div>
                         </div>
                     ))}
-                    <button onClick={() => { setEditingSubtask(null); setIsSubtaskModalOpen(true);}} className="text-indigo-400 text-sm hover:text-indigo-300">+ Add Subtask</button>
+                     {project.subtasks.length === 0 && <p className="text-gray-500 italic text-sm">No subtasks yet.</p>}
+                    <button onClick={() => { setEditingSubtask(null); setIsSubtaskModalOpen(true);}} className="text-indigo-400 text-sm hover:text-indigo-300 pt-2">+ Add Subtask</button>
                 </div>
             )}
             <Modal isOpen={isSubtaskModalOpen} onClose={() => setIsSubtaskModalOpen(false)} title={editingSubtask ? 'Edit Subtask' : 'Add Subtask'}>
@@ -141,29 +150,61 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
 
 // Main View
 const ProjectsView: React.FC = () => {
-    const [projects, setProjects] = useLocalStorage<Project[]>('projects', []);
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [loading, setLoading] = useState(true);
     const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
     const [editingProject, setEditingProject] = useState<Project | null>(null);
 
-    const handleSaveProject = (project: Project) => {
-        if (editingProject) {
-            setProjects(projects.map(p => p.id === project.id ? project : p));
+    const fetchProjects = useCallback(async () => {
+        setLoading(true);
+        const { data, error } = await supabase
+            .from('projects')
+            .select('*, subtasks(*)')
+            .order('deadline', { ascending: true });
+
+        if (error) {
+            console.error('Error fetching projects:', error);
         } else {
-            setProjects([...projects, project]);
+            setProjects(data as Project[] || []);
         }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => {
+        fetchProjects();
+    }, [fetchProjects]);
+
+
+    // FIX: Use the specific 'Insert' type for the project payload.
+    const handleSaveProject = async (projectData: ProjectInsert) => {
+        if (editingProject) {
+            const { error } = await supabase.from('projects').update(projectData).eq('id', editingProject.id);
+            if (error) console.error('Error updating project:', error);
+        } else {
+            const { error } = await supabase.from('projects').insert(projectData);
+            if (error) console.error('Error creating project:', error);
+        }
+        await fetchProjects();
         setIsProjectModalOpen(false);
         setEditingProject(null);
     };
 
-    const handleDeleteProject = (id: string) => {
+    const handleDeleteProject = async (id: string) => {
         if (window.confirm('Are you sure you want to delete this project and all its subtasks?')) {
-            setProjects(projects.filter(p => p.id !== id));
+            // First, delete related subtasks. This is important if you have RLS or foreign key constraints.
+            const { error: subtaskError } = await supabase.from('subtasks').delete().eq('project_id', id);
+            if (subtaskError) {
+                console.error('Error deleting subtasks:', subtaskError);
+                return;
+            }
+
+            const { error } = await supabase.from('projects').delete().eq('id', id);
+            if (error) console.error('Error deleting project:', error);
+            else await fetchProjects();
         }
     };
-    
-    const handleSubtaskChange = (projectId: string, newSubtasks: Subtask[]) => {
-        setProjects(projects.map(p => p.id === projectId ? {...p, subtasks: newSubtasks} : p));
-    };
+
+    if (loading) return <div className="text-center p-8">Loading projects...</div>;
 
     return (
         <div className="space-y-6">
@@ -180,7 +221,7 @@ const ProjectsView: React.FC = () => {
                             <h3 className="text-xl font-bold mb-4 text-white border-b-2 border-gray-700 pb-2">{category}</h3>
                             <div className="space-y-4">
                                 {categoryProjects.map(project => (
-                                    <ProjectCard key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtaskChange={handleSubtaskChange}/>
+                                    <ProjectCard key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtaskChange={fetchProjects}/>
                                 ))}
                             </div>
                         </div>

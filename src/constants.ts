@@ -1,4 +1,4 @@
-import { SkillCategory, ProjectStatus, SkillStatus, Skills, ProjectCategory } from './types';
+import { SkillCategory, ProjectStatus, SkillStatus, ProjectCategory } from './types';
 
 export const SKILL_CATEGORIES: SkillCategory[] = [
   SkillCategory.AI,
@@ -30,13 +30,3 @@ export const SKILL_STATUSES: SkillStatus[] = [
   SkillStatus.Practicing,
   SkillStatus.Mastered,
 ];
-
-
-export const INITIAL_SKILLS: Skills = {
-    [SkillCategory.AI]: [],
-    [SkillCategory.AppDev]: [],
-    [SkillCategory.Academic]: [],
-    [SkillCategory.Marketing]: [],
-    [SkillCategory.Chem]: [],
-    [SkillCategory.Others]: [],
-};
