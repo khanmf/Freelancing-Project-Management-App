@@ -222,3 +222,15 @@ export type Skill = Database['public']['Tables']['skills']['Row'];
 export type Skills = Record<SkillCategory, Skill[]>;
 export type Transaction = Database['public']['Tables']['transactions']['Row'];
 export type Todo = Database['public']['Tables']['todos']['Row'];
+
+// --- UI Types ---
+
+export interface ToastMessage {
+  id: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+}
+
+export interface ToastContextType {
+  addToast: (message: string, type: 'success' | 'error' | 'info') => void;
+}

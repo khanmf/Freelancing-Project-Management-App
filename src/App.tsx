@@ -5,6 +5,7 @@ import SkillsView from './components/SkillsView';
 import FinancesView from './components/FinancesView';
 import TodosView from './components/TodosView';
 import VoiceAssistant from './components/VoiceAssistant';
+import { ToastProvider } from './hooks/useToast';
 import { View } from './types';
 import { CodeIcon, ChartBarIcon, BriefcaseIcon, CheckCircleIcon } from './components/icons/Icons';
 
@@ -44,26 +45,28 @@ const App: React.FC = () => {
   const { title, subtitle, icon } = getHeader();
 
   return (
-    <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
-      <Sidebar activeView={activeView} setActiveView={setActiveView} />
-      <main className="flex-1 p-4 sm:p-8 overflow-y-auto relative">
-        <header className="mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="bg-gray-800 p-3 rounded-lg">
-              {icon}
+    <ToastProvider>
+      <div className="flex h-screen bg-gray-900 text-gray-100 font-sans">
+        <Sidebar activeView={activeView} setActiveView={setActiveView} />
+        <main className="flex-1 p-4 sm:p-8 overflow-y-auto relative">
+          <header className="mb-8">
+            <div className="flex items-center space-x-4">
+              <div className="bg-gray-800 p-3 rounded-lg">
+                {icon}
+              </div>
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-white">{title}</h1>
+                <p className="text-sm sm:text-base text-gray-400">{subtitle}</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white">{title}</h1>
-              <p className="text-sm sm:text-base text-gray-400">{subtitle}</p>
-            </div>
+          </header>
+          <div className="w-full">
+            {renderView()}
           </div>
-        </header>
-        <div className="w-full">
-          {renderView()}
-        </div>
-      </main>
-      <VoiceAssistant />
-    </div>
+        </main>
+        <VoiceAssistant />
+      </div>
+    </ToastProvider>
   );
 };
 

@@ -1,3 +1,44 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  /* For smooth transitions on colors, borders, and transforms */
+  button, a, input, select, textarea {
+    transition: all 0.2s ease-in-out;
+  }
+  
+  /* Custom focus-visible state for better accessibility */
+  .focus-visible\:ring-indigo-500:focus-visible {
+    --tw-ring-color: #6366f1;
+  }
+}
+
+/* Animations for Toast Notifications */
+@keyframes toast-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+.animate-toast-in-right {
+  animation: toast-in-right 0.5s ease-out forwards;
+}
+
+@keyframes toast-out-right {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+.animate-toast-out-right {
+  animation: toast-out-right 0.5s ease-in forwards;
+}
