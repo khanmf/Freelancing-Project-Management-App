@@ -11,6 +11,13 @@ export enum ProjectStatus {
   Done = 'Done',
 }
 
+// New enum for detailed subtask statuses
+export enum SubtaskStatus {
+  NotStarted = 'Not Started',
+  InProgress = 'In Progress',
+  Completed = 'Completed',
+}
+
 export enum ProjectCategory {
   AppDev = 'App Development',
   AI = 'AI Automation',
@@ -62,6 +69,7 @@ export type Database = {
           status: string
           category: string
           created_at: string | null
+          budget: number | null
         }
         Insert: {
           id?: string
@@ -71,6 +79,7 @@ export type Database = {
           status: string
           category: string
           created_at?: string | null
+          budget?: number | null
         }
         Update: {
           id?: string
@@ -80,6 +89,7 @@ export type Database = {
           status?: string
           category?: string
           created_at?: string | null
+          budget?: number | null
         }
         // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: []
@@ -91,6 +101,9 @@ export type Database = {
           status: string
           project_id: string
           created_at: string | null
+          assigned_to: string | null
+          deadline: string | null
+          position: number
         }
         Insert: {
           id?: string
@@ -98,6 +111,9 @@ export type Database = {
           status: string
           project_id: string
           created_at?: string | null
+          assigned_to?: string | null
+          deadline?: string | null
+          position: number
         }
         Update: {
           id?: string
@@ -105,6 +121,9 @@ export type Database = {
           status?: string
           project_id?: string
           created_at?: string | null
+          assigned_to?: string | null
+          deadline?: string | null
+          position?: number
         }
         // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: [

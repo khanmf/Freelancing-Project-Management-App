@@ -1,4 +1,4 @@
-import { SkillCategory, ProjectStatus, SkillStatus, ProjectCategory } from './types';
+import { SkillCategory, ProjectStatus, SkillStatus, ProjectCategory, SubtaskStatus } from './types';
 
 export const SKILL_CATEGORIES: SkillCategory[] = [
   SkillCategory.AI,
@@ -23,6 +23,12 @@ export const PROJECT_STATUSES: ProjectStatus[] = [
   ProjectStatus.Todo,
   ProjectStatus.InProgress,
   ProjectStatus.Done,
+];
+
+export const SUBTASK_STATUSES: SubtaskStatus[] = [
+  SubtaskStatus.NotStarted,
+  SubtaskStatus.InProgress,
+  SubtaskStatus.Completed,
 ];
 
 export const SKILL_STATUSES: SkillStatus[] = [

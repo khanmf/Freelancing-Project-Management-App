@@ -1,36 +1,51 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Project, ProjectStatus, ProjectCategory, Subtask, Database } from '../types';
-import { PROJECT_STATUSES, PROJECT_CATEGORIES } from '../constants';
+import { Project, Subtask, Database, SubtaskStatus } from '../types';
+import { PROJECT_STATUSES, PROJECT_CATEGORIES, SUBTASK_STATUSES } from '../constants';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
 import Modal from './Modal';
 import AIProjectModal from './AIProjectModal';
-import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon, SparklesIcon, BriefcaseIcon } from './icons/Icons';
+import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon, SparklesIcon, BriefcaseIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
 
 type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
 type SubtaskUpdate = Database['public']['Tables']['subtasks']['Update'];
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
+type ProjectUpdate = Database['public']['Tables']['projects']['Update'];
 
 // Subtask Form
-const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Pick<SubtaskInsert, 'name' | 'status'>) => void; onCancel: () => void; }> = ({ subtask, onSave, onCancel }) => {
-    const [name, setName] = useState(subtask?.name || '');
-    const [status, setStatus] = useState(subtask?.status as ProjectStatus || ProjectStatus.Todo);
+const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Omit<SubtaskInsert, 'project_id' | 'position'>) => void; onCancel: () => void; }> = ({ subtask, onSave, onCancel }) => {
+    const [formData, setFormData] = useState({
+        name: subtask?.name || '',
+        status: subtask?.status as SubtaskStatus || SubtaskStatus.NotStarted,
+        assigned_to: subtask?.assigned_to || '',
+        deadline: subtask?.deadline || '',
+    });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        onSave({ name, status });
+        onSave(formData);
     };
+    
+    const formInputClasses = "mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800";
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
                 <label className="block text-sm font-medium text-gray-300">Subtask Name</label>
-                <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800" required />
+                <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className={formInputClasses} required />
+            </div>
+             <div>
+                <label className="block text-sm font-medium text-gray-300">Assigned To</label>
+                <input type="text" placeholder="e.g., John Doe" value={formData.assigned_to || ''} onChange={(e) => setFormData({...formData, assigned_to: e.target.value})} className={formInputClasses} />
+            </div>
+             <div>
+                <label className="block text-sm font-medium text-gray-300">Deadline</label>
+                <input type="date" value={formData.deadline || ''} onChange={(e) => setFormData({...formData, deadline: e.target.value})} className={formInputClasses} />
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-300">Status</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value as ProjectStatus)} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
-                    {PROJECT_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value as SubtaskStatus})} className={formInputClasses}>
+                    {SUBTASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
             </div>
             <div className="flex justify-end space-x-2 pt-4">
@@ -48,8 +63,9 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
         name: project?.name || '',
         client: project?.client || '',
         deadline: project?.deadline || '',
-        status: project?.status as ProjectStatus || ProjectStatus.Todo,
-        category: project?.category as ProjectCategory || ProjectCategory.Others,
+        status: project?.status || 'To Do',
+        category: project?.category || 'Others',
+        budget: project?.budget || null,
     });
     const [subtasks, setSubtasks] = useState<string[]>(project?.subtasks.map(st => st.name) || prefilledSubtasks);
     const [newSubtask, setNewSubtask] = useState('');
@@ -68,7 +84,7 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         const finalProject = { ...formData, id: project?.id || '', created_at: project?.created_at || null, subtasks: [] };
-        const newSubtaskObjects = subtasks.map(name => ({ name, status: ProjectStatus.Todo }));
+        const newSubtaskObjects = subtasks.map(name => ({ name, status: SubtaskStatus.NotStarted as any }));
         onSave(finalProject, newSubtaskObjects);
     };
 
@@ -79,10 +95,14 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
             <input type="text" placeholder="Project Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={formInputClasses} required />
             <input type="text" placeholder="Client" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} className={formInputClasses} required />
             <input type="date" value={formData.deadline} onChange={(e) => setFormData({ ...formData, deadline: e.target.value })} className={formInputClasses} required />
-             <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value as ProjectCategory })} className={formInputClasses}>
+             <div>
+                <label className="block text-sm font-medium text-gray-300">Budget ($)</label>
+                <input type="number" placeholder="e.g., 1500" value={formData.budget || ''} onChange={(e) => setFormData({ ...formData, budget: e.target.value ? Number(e.target.value) : null })} className={formInputClasses} />
+            </div>
+             <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className={formInputClasses}>
                 {PROJECT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
-            <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as ProjectStatus })} className={formInputClasses}>
+            <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className={formInputClasses}>
                 {PROJECT_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
             </select>
             
@@ -111,13 +131,13 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
 };
 
 // Project Card (Collapsible)
-const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => void; onDelete: (id: string) => void; }> = ({ project, onEdit, onDelete }) => {
+const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => void; onDelete: (id: string) => void; onSubtasksReordered: () => void; }> = ({ project, onEdit, onDelete, onSubtasksReordered }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
     const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
     const { addToast } = useToast();
 
-    const handleSaveSubtask = async (subtaskData: Pick<SubtaskInsert, 'name' | 'status'>) => {
+    const handleSaveSubtask = async (subtaskData: Omit<SubtaskInsert, 'project_id' | 'position'>) => {
         if (editingSubtask) {
             const subtaskUpdate: SubtaskUpdate = subtaskData;
             const { error } = await supabase.from('subtasks').update(subtaskUpdate).eq('id', editingSubtask.id);
@@ -128,7 +148,8 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
                 addToast('Subtask updated', 'success');
             }
         } else {
-            const subtaskInsert: SubtaskInsert = { ...subtaskData, project_id: project.id };
+            const newPosition = project.subtasks.length > 0 ? Math.max(...project.subtasks.map(st => st.position)) + 1 : 0;
+            const subtaskInsert: SubtaskInsert = { ...subtaskData, project_id: project.id, position: newPosition };
             const { error } = await supabase.from('subtasks').insert(subtaskInsert);
              if(error) {
                 console.error("Error creating subtask", error);
@@ -153,12 +174,50 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
         }
     };
     
+    const handleMoveSubtask = async (subtaskId: string, direction: 'up' | 'down') => {
+        const sortedSubtasks = [...project.subtasks].sort((a,b) => a.position - b.position);
+        const currentIndex = sortedSubtasks.findIndex(st => st.id === subtaskId);
+
+        if ((direction === 'up' && currentIndex === 0) || (direction === 'down' && currentIndex === sortedSubtasks.length - 1)) {
+            return;
+        }
+
+        const swapIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+        
+        const subtaskA = sortedSubtasks[currentIndex];
+        const subtaskB = sortedSubtasks[swapIndex];
+        
+        // FIX: The upsert operation requires the full object structure to satisfy
+        // the type for a potential insert, even when just updating.
+        const updates = [
+            { ...subtaskA, position: subtaskB.position },
+            { ...subtaskB, position: subtaskA.position },
+        ];
+
+        const { error } = await supabase.from('subtasks').upsert(updates);
+        if (error) {
+            console.error("Error reordering subtasks:", error);
+            addToast('Error reordering subtasks', 'error');
+        } else {
+            onSubtasksReordered(); // Trigger a refetch in parent
+        }
+    };
+    
     const getStatusColor = (status: string) => {
         switch (status) {
-          case ProjectStatus.Todo: return 'border-yellow-500';
-          case ProjectStatus.InProgress: return 'border-blue-500';
-          case ProjectStatus.Done: return 'border-green-500';
+          case 'To Do': return 'border-yellow-500';
+          case 'In Progress': return 'border-blue-500';
+          case 'Done': return 'border-green-500';
         }
+    };
+    
+    const getSubtaskStatusColor = (status: string) => {
+      switch(status) {
+        case SubtaskStatus.NotStarted: return 'bg-gray-600';
+        case SubtaskStatus.InProgress: return 'bg-blue-600';
+        case SubtaskStatus.Completed: return 'bg-green-600';
+        default: return 'bg-gray-600';
+      }
     };
 
     return (
@@ -166,8 +225,12 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
             <button aria-expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} className="w-full flex items-center p-4 text-left rounded-t-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
                 <div className={`w-2 h-10 rounded-full mr-4 flex-shrink-0 ${getStatusColor(project.status)}`}></div>
                 <div className="flex-1">
-                    <h4 className="font-bold text-white">{project.name}</h4>
-                    <p className="text-sm text-gray-400">{project.client} - Deadline: {project.deadline}</p>
+                    <div className="flex items-center space-x-2">
+                      <h4 className="font-bold text-white">{project.name}</h4>
+                      <span className="text-gray-500 font-light">|</span>
+                      <p className="text-sm text-gray-400">{project.client}</p>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">Deadline: {project.deadline} {project.budget && ` - Budget: $${project.budget.toLocaleString()}`}</p>
                 </div>
                 <ChevronDownIcon className={`h-6 w-6 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>
@@ -178,10 +241,19 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
                         <button aria-label={`Delete project ${project.name}`} onClick={(e) => { e.stopPropagation(); onDelete(project.id); }} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800"><TrashIcon className="h-5 w-5" /></button>
                     </div>
                     <h5 className="font-semibold text-gray-300">Subtasks</h5>
-                    {project.subtasks.map(st => (
-                        <div key={st.id} className="flex justify-between items-center bg-gray-700 p-2 rounded">
-                           <span className={`text-sm ${st.status === ProjectStatus.Done ? 'line-through text-gray-500' : 'text-white'}`}>{st.name} ({st.status})</span>
-                           <div className="flex space-x-2">
+                    {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => (
+                        <div key={st.id} className="flex flex-col sm:flex-row sm:items-center bg-gray-700 p-2.5 rounded-md group">
+                           <div className="flex-1 mb-2 sm:mb-0">
+                               <p className={`text-sm font-medium ${st.status === SubtaskStatus.Completed ? 'line-through text-gray-500' : 'text-white'}`}>{st.name}</p>
+                               <div className="flex items-center space-x-4 text-xs text-gray-400 mt-1">
+                                  <span className={`px-2 py-0.5 rounded-full text-white ${getSubtaskStatusColor(st.status)}`}>{st.status}</span>
+                                  {st.assigned_to && <span>To: {st.assigned_to}</span>}
+                                  {st.deadline && <span>Due: {st.deadline}</span>}
+                               </div>
+                           </div>
+                           <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button aria-label={`Move subtask ${st.name} up`} onClick={() => handleMoveSubtask(st.id, 'up')} disabled={index === 0} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowUpIcon className="h-4 w-4" /></button>
+                                <button aria-label={`Move subtask ${st.name} down`} onClick={() => handleMoveSubtask(st.id, 'down')} disabled={index === project.subtasks.length - 1} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowDownIcon className="h-4 w-4" /></button>
                                 <button aria-label={`Edit subtask ${st.name}`} onClick={() => { setEditingSubtask(st); setIsSubtaskModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-4 w-4" /></button>
                                 <button aria-label={`Delete subtask ${st.name}`} onClick={() => handleDeleteSubtask(st.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-4 w-4" /></button>
                            </div>
@@ -211,10 +283,12 @@ const ProjectsView: React.FC = () => {
     const { addToast } = useToast();
 
     const fetchProjects = useCallback(async () => {
+        // Fetch projects and their subtasks, ordering subtasks by position
         const { data, error } = await supabase
             .from('projects')
             .select('*, subtasks(*)')
-            .order('deadline', { ascending: true });
+            .order('deadline', { ascending: true })
+            .order('position', { foreignTable: 'subtasks', ascending: true });
 
         if (error) {
             console.error('Error fetching projects:', error);
@@ -243,12 +317,13 @@ const ProjectsView: React.FC = () => {
 
 
     const handleSaveProject = async (projectData: Project, newSubtasks: Pick<Subtask, 'name'| 'status'>[]) => {
-        const projectPayload: ProjectInsert = {
+        const projectPayload: ProjectInsert & ProjectUpdate = {
             name: projectData.name,
             client: projectData.client,
             deadline: projectData.deadline,
             status: projectData.status,
             category: projectData.category,
+            budget: projectData.budget,
         };
 
         const isEditing = editingProject && editingProject.id;
@@ -269,7 +344,7 @@ const ProjectsView: React.FC = () => {
             } else if (data) {
                 addToast('Project created successfully', 'success');
                 if (newSubtasks.length > 0) {
-                    const subtasksToInsert = newSubtasks.map(st => ({...st, project_id: data.id}));
+                    const subtasksToInsert = newSubtasks.map((st, index) => ({...st, project_id: data.id, position: index}));
                     const { error: subtaskError } = await supabase.from('subtasks').insert(subtasksToInsert);
                     if (subtaskError) {
                         console.error('Error adding subtasks:', subtaskError);
@@ -303,16 +378,17 @@ const ProjectsView: React.FC = () => {
         setIsProjectModalOpen(true);
     }
 
-    const handleAIProjectGenerated = (data: { name: string, client: string, deadline: string, category: ProjectCategory, subtasks: string[] }) => {
+    const handleAIProjectGenerated = (data: { name: string, client: string, deadline: string, category: any, subtasks: string[] }) => {
         setEditingProject({
             id: '',
             name: data.name,
             client: data.client,
             deadline: data.deadline,
             category: data.category,
-            status: ProjectStatus.Todo,
+            status: 'To Do',
             created_at: null,
             subtasks: [],
+            budget: null
         });
         setPrefilledSubtasks(data.subtasks);
         setIsAIModalOpen(false);
@@ -353,7 +429,7 @@ const ProjectsView: React.FC = () => {
                                 <h3 className="text-xl font-bold mb-4 text-white border-b-2 border-gray-700 pb-2">{category}</h3>
                                 <div className="space-y-4">
                                     {categoryProjects.map(project => (
-                                        <ProjectCard key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} />
+                                        <ProjectCard key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtasksReordered={fetchProjects} />
                                     ))}
                                 </div>
                             </div>
