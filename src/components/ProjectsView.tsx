@@ -70,6 +70,18 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
     const [subtasks, setSubtasks] = useState<string[]>(project?.subtasks.map(st => st.name) || prefilledSubtasks);
     const [newSubtask, setNewSubtask] = useState('');
 
+    useEffect(() => {
+        setFormData({
+            name: project?.name || '',
+            client: project?.client || '',
+            deadline: project?.deadline || '',
+            status: project?.status || 'To Do',
+            category: project?.category || 'Others',
+            budget: project?.budget || null,
+        });
+        setSubtasks(project?.subtasks.map(st => st.name) || prefilledSubtasks);
+    }, [project, prefilledSubtasks]);
+
     const handleAddSubtask = () => {
         if (newSubtask.trim()) {
             setSubtasks([...subtasks, newSubtask.trim()]);
