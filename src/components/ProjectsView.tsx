@@ -60,17 +60,15 @@ const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Omit<Su
 // Project Form
 const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project, newSubtasks: Pick<Subtask, 'name'| 'status'>[]) => void; onCancel: () => void; prefilledSubtasks?: string[] }> = ({ project, onSave, onCancel, prefilledSubtasks = [] }) => {
     const [formData, setFormData] = useState<Omit<Project, 'id' | 'subtasks' | 'created_at'>>({
-        name: project?.name || '',
-        client: project?.client || '',
-        deadline: project?.deadline || '',
-        status: project?.status || 'To Do',
-        category: project?.category || 'Others',
-        budget: project?.budget || null,
+        name: '', client: '', deadline: '', status: 'To Do', category: 'Others', budget: null,
     });
-    const [subtasks, setSubtasks] = useState<string[]>(project?.subtasks.map(st => st.name) || prefilledSubtasks);
+    const [subtasks, setSubtasks] = useState<string[]>([]);
     const [newSubtask, setNewSubtask] = useState('');
 
     useEffect(() => {
+        // This effect now ONLY runs when the modal is opened for a specific project
+        // or when a new AI project is scaffolded. It won't re-run on every parent render
+        // or keystroke, which fixes the "focus stealing" bug.
         setFormData({
             name: project?.name || '',
             client: project?.client || '',
@@ -79,8 +77,8 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
             category: project?.category || 'Others',
             budget: project?.budget || null,
         });
-        setSubtasks(project?.subtasks.map(st => st.name) || prefilledSubtasks);
-    }, [project, prefilledSubtasks]);
+        setSubtasks(project?.subtasks?.map(st => st.name) || prefilledSubtasks);
+    }, [project?.id, JSON.stringify(prefilledSubtasks)]); // Depend on stable values
 
     const handleAddSubtask = () => {
         if (newSubtask.trim()) {
@@ -199,8 +197,6 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
         const subtaskA = sortedSubtasks[currentIndex];
         const subtaskB = sortedSubtasks[swapIndex];
         
-        // FIX: The upsert operation requires the full object structure to satisfy
-        // the type for a potential insert, even when just updating.
         const updates = [
             { ...subtaskA, position: subtaskB.position },
             { ...subtaskB, position: subtaskA.position },
@@ -211,7 +207,7 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
             console.error("Error reordering subtasks:", error);
             addToast('Error reordering subtasks', 'error');
         } else {
-            onSubtasksReordered(); // Trigger a refetch in parent
+            onSubtasksReordered();
         }
     };
     
@@ -295,20 +291,36 @@ const ProjectsView: React.FC = () => {
     const { addToast } = useToast();
 
     const fetchProjects = useCallback(async () => {
-        // Fetch projects and their subtasks, ordering subtasks by position
-        const { data, error } = await supabase
-            .from('projects')
-            .select('*, subtasks(*)')
-            .order('deadline', { ascending: true })
-            .order('position', { foreignTable: 'subtasks', ascending: true });
-
-        if (error) {
-            console.error('Error fetching projects:', error);
-            addToast('Error fetching projects', 'error');
-        } else {
-            setProjects(data as Project[] || []);
+        setLoading(true);
+        try {
+            const { data: projectsData, error: projectsError } = await supabase
+                .from('projects')
+                .select('*')
+                .order('deadline', { ascending: true });
+    
+            if (projectsError) throw projectsError;
+    
+            const { data: subtasksData, error: subtasksError } = await supabase
+                .from('subtasks')
+                .select('*');
+    
+            if (subtasksError) throw subtasksError;
+            
+            const projectsWithSubtasks = projectsData.map(p => {
+                const relatedSubtasks = subtasksData
+                    .filter(s => s.project_id === p.id)
+                    .sort((a, b) => a.position - b.position);
+                return { ...p, subtasks: relatedSubtasks };
+            });
+    
+            setProjects(projectsWithSubtasks as Project[]);
+    
+        } catch (error) {
+            console.error('Error fetching project data:', error);
+            addToast('Error fetching project data.', 'error');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }, [addToast]);
 
     useEffect(() => {
@@ -366,7 +378,6 @@ const ProjectsView: React.FC = () => {
             }
         }
         
-        await fetchProjects();
         setIsProjectModalOpen(false);
         setEditingProject(null);
         setPrefilledSubtasks([]);
