@@ -191,34 +191,6 @@ export type Database = {
         // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: []
       }
-      todos: {
-        Row: {
-          id: string
-          text: string
-          completed: boolean
-          position: number
-          created_at: string | null
-          category: string | null
-        }
-        Insert: {
-          id?: string
-          text: string
-          completed?: boolean
-          position: number
-          created_at?: string | null
-          category: string
-        }
-        Update: {
-          id?: string
-          text?: string
-          completed?: boolean
-          position?: number
-          created_at?: string | null
-          category?: string
-        }
-        // FIX: Add Relationships array to fix 'never' type inference issues.
-        Relationships: []
-      }
     }
     Views: {
       [_ in never]: never
@@ -243,7 +215,7 @@ export type Subtask = Database['public']['Tables']['subtasks']['Row'];
 export type Skill = Database['public']['Tables']['skills']['Row'];
 export type Skills = Record<SkillCategory, Skill[]>;
 export type Transaction = Database['public']['Tables']['transactions']['Row'];
-export type Todo = Database['public']['Tables']['todos']['Row'];
+
 
 // --- UI Types ---
 

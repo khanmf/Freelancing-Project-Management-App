@@ -4,15 +4,15 @@ import { GoogleGenAI, LiveServerMessage, Modality, Type, Blob, FunctionDeclarati
 import { supabase } from '../supabaseClient';
 import { PROJECT_CATEGORIES, SKILL_CATEGORIES, SKILL_STATUSES } from '../constants';
 // FIX: Import ProjectCategory to use as a default value.
-import { TransactionType, Database, ProjectStatus, ProjectCategory } from '../types';
+import { TransactionType, Database, ProjectStatus, SubtaskStatus } from '../types';
 import { MicrophoneIcon, XMarkIcon } from './icons/Icons';
 
 // --- Type aliases for Supabase operations ---
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 type SkillInsert = Database['public']['Tables']['skills']['Insert'];
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
-type TodoInsert = Database['public']['Tables']['todos']['Insert'];
-type TodoRow = Database['public']['Tables']['todos']['Row'];
+type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
+
 
 // --- Audio Utility Functions ---
 function encode(bytes: Uint8Array) {
@@ -108,11 +108,12 @@ const functionDeclarations: FunctionDeclaration[] = [
     },
     {
         name: 'addTodo',
-        description: 'Adds a new task to the to-do list.',
+        description: 'Adds a new task to a specified project. The task will appear in the main to-do list.',
         parameters: {
             type: Type.OBJECT, properties: {
                 text: { type: Type.STRING, description: 'The content of the to-do task.' },
-            }, required: ['text'],
+                project_name: { type: Type.STRING, description: 'The name of the project this task belongs to.' },
+            }, required: ['text', 'project_name'],
         },
     },
 ];
@@ -176,13 +177,52 @@ const VoiceAssistant: React.FC = () => {
                     result = `Successfully logged transaction: ${fc.args.description}`;
                     break;
                 case 'addTodo':
-                    const { data: todos } = await supabase.from('todos').select('position').order('position', { ascending: false }).limit(1);
-                    const lastTodo = todos?.[0] as TodoRow | undefined;
-                    const newPosition = lastTodo ? lastTodo.position + 1 : 0;
-                    // FIX: The 'todos' table requires a 'category'. A default is provided here.
-                    const newTodo: TodoInsert = { text: fc.args.text, completed: false, position: newPosition, category: ProjectCategory.Others };
-                    await supabase.from('todos').insert(newTodo);
-                    result = `Successfully added to-do: ${fc.args.text}`;
+                    const { data: projectData, error: projectError } = await supabase
+                        .from('projects')
+                        .select('id')
+                        .ilike('name', `%${fc.args.project_name}%`)
+                        .single();
+
+                    if (projectError || !projectData) {
+                        console.error("Project not found:", fc.args.project_name, projectError);
+                        result = `Could not find a project named "${fc.args.project_name}". Please try again.`;
+                        break;
+                    }
+                    
+                    const projectId = projectData.id;
+
+                    const { data: subtasks, error: subtasksError } = await supabase
+                        .from('subtasks')
+                        .select('position')
+                        .eq('project_id', projectId)
+                        .order('position', { ascending: false })
+                        .limit(1);
+
+                    if (subtasksError) {
+                        console.error("Error fetching subtasks for position:", subtasksError);
+                        result = `Error creating task: Could not determine task position.`;
+                        break;
+                    }
+
+                    const lastSubtask = subtasks?.[0];
+                    const newPosition = lastSubtask ? lastSubtask.position + 1 : 0;
+                    
+                    const newSubtask: Omit<SubtaskInsert, 'id' | 'created_at'> = { 
+                        name: fc.args.text, 
+                        status: SubtaskStatus.NotStarted, 
+                        project_id: projectId,
+                        position: newPosition,
+                    };
+
+                    const { error: insertError } = await supabase.from('subtasks').insert(newSubtask);
+
+                    if (insertError) {
+                        console.error("Error inserting subtask:", insertError);
+                        result = `Error saving task to project "${fc.args.project_name}".`;
+                        break;
+                    }
+                    
+                    result = `Successfully added task "${fc.args.text}" to project "${fc.args.project_name}".`;
                     break;
                 default:
                     result = `Function ${fc.name} is not implemented.`;

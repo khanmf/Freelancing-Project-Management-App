@@ -228,7 +228,14 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
       }
     };
 
-    const category = project.category as ProjectCategory || ProjectCategory.Others;
+    const getValidCategory = (cat: string | null): ProjectCategory => {
+        if (cat && Object.values(ProjectCategory).includes(cat as ProjectCategory)) {
+            return cat as ProjectCategory;
+        }
+        return ProjectCategory.Others;
+    };
+
+    const category = getValidCategory(project.category);
     const categoryColor = CATEGORY_COLORS[category];
 
     return (
@@ -239,7 +246,7 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
                     <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
                         <h4 className="font-bold text-white">{project.name}</h4>
                         <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColor.bg} ${categoryColor.text}`}>
-                            {project.category}
+                            {category}
                         </span>
                     </div>
                     <p className="text-xs text-gray-500 mt-1">Client: {project.client} | Deadline: {project.deadline} {project.budget && ` - Budget: $${project.budget.toLocaleString()}`}</p>
