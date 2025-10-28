@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Project, Subtask, Database, SubtaskStatus } from '../types';
-import { PROJECT_STATUSES, PROJECT_CATEGORIES, SUBTASK_STATUSES } from '../constants';
+import { Project, Subtask, Database, SubtaskStatus, ProjectCategory } from '../types';
+import { PROJECT_STATUSES, PROJECT_CATEGORIES, SUBTASK_STATUSES, CATEGORY_COLORS } from '../constants';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
 import Modal from './Modal';
@@ -228,17 +228,21 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
       }
     };
 
+    const category = project.category as ProjectCategory || ProjectCategory.Others;
+    const categoryColor = CATEGORY_COLORS[category];
+
     return (
         <div className="bg-gray-800 rounded-lg border border-gray-700 transition-shadow hover:shadow-lg hover:border-gray-600">
             <button aria-expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} className="w-full flex items-center p-4 text-left rounded-t-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
                 <div className={`w-2 h-10 rounded-full mr-4 flex-shrink-0 ${getStatusColor(project.status)}`}></div>
                 <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <h4 className="font-bold text-white">{project.name}</h4>
-                      <span className="text-gray-500 font-light">|</span>
-                      <p className="text-sm text-gray-400">{project.client}</p>
+                    <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
+                        <h4 className="font-bold text-white">{project.name}</h4>
+                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColor.bg} ${categoryColor.text}`}>
+                            {project.category}
+                        </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">Deadline: {project.deadline} {project.budget && ` - Budget: $${project.budget.toLocaleString()}`}</p>
+                    <p className="text-xs text-gray-500 mt-1">Client: {project.client} | Deadline: {project.deadline} {project.budget && ` - Budget: $${project.budget.toLocaleString()}`}</p>
                 </div>
                 <ChevronDownIcon className={`h-6 w-6 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
             </button>

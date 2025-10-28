@@ -198,6 +198,7 @@ export type Database = {
           completed: boolean
           position: number
           created_at: string | null
+          category: string | null
         }
         Insert: {
           id?: string
@@ -205,6 +206,7 @@ export type Database = {
           completed?: boolean
           position: number
           created_at?: string | null
+          category: string
         }
         Update: {
           id?: string
@@ -212,6 +214,7 @@ export type Database = {
           completed?: boolean
           position?: number
           created_at?: string | null
+          category?: string
         }
         // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: []

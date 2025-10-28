@@ -3,7 +3,8 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality, Type, Blob, FunctionDeclaration } from '@google/genai';
 import { supabase } from '../supabaseClient';
 import { PROJECT_CATEGORIES, SKILL_CATEGORIES, SKILL_STATUSES } from '../constants';
-import { TransactionType, Database, ProjectStatus } from '../types';
+// FIX: Import ProjectCategory to use as a default value.
+import { TransactionType, Database, ProjectStatus, ProjectCategory } from '../types';
 import { MicrophoneIcon, XMarkIcon } from './icons/Icons';
 
 // --- Type aliases for Supabase operations ---
@@ -178,7 +179,8 @@ const VoiceAssistant: React.FC = () => {
                     const { data: todos } = await supabase.from('todos').select('position').order('position', { ascending: false }).limit(1);
                     const lastTodo = todos?.[0] as TodoRow | undefined;
                     const newPosition = lastTodo ? lastTodo.position + 1 : 0;
-                    const newTodo: TodoInsert = { text: fc.args.text, completed: false, position: newPosition };
+                    // FIX: The 'todos' table requires a 'category'. A default is provided here.
+                    const newTodo: TodoInsert = { text: fc.args.text, completed: false, position: newPosition, category: ProjectCategory.Others };
                     await supabase.from('todos').insert(newTodo);
                     result = `Successfully added to-do: ${fc.args.text}`;
                     break;

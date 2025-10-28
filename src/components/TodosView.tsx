@@ -1,26 +1,44 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Todo, Database } from '../types';
+import { Todo, Database, ProjectCategory } from '../types';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, ArrowUpIcon, ArrowDownIcon, CheckCircleIcon } from './icons/Icons';
+import { PROJECT_CATEGORIES, CATEGORY_COLORS } from '../constants';
+
 
 type TodoInsert = Database['public']['Tables']['todos']['Insert'];
 type TodoUpdate = Database['public']['Tables']['todos']['Update'];
 
-const TodoForm: React.FC<{ todo: Todo | null; onSave: (text: string) => void; onCancel: () => void; }> = ({ todo, onSave, onCancel }) => {
-    const [text, setText] = useState(todo?.text || '');
+const TodoForm: React.FC<{ todo: Todo | null; onSave: (data: { text: string; category: ProjectCategory }) => void; onCancel: () => void; }> = ({ todo, onSave, onCancel }) => {
+    const [formData, setFormData] = useState({
+        text: todo?.text || '',
+        category: (todo?.category as ProjectCategory) || ProjectCategory.Others
+    });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (text.trim()) {
-            onSave(text);
+        if (formData.text.trim()) {
+            onSave(formData);
         }
     };
 
+    const formInputClasses = "mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800";
+
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            <input type="text" value={text} onChange={e => setText(e.target.value)} className="mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800" placeholder="Enter a task..." required />
+            <div>
+                <label className="block text-sm font-medium text-gray-300">Task</label>
+                <input type="text" value={formData.text} onChange={e => setFormData({...formData, text: e.target.value})} className={formInputClasses} placeholder="Enter a task..." required />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-300">Category</label>
+                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value as ProjectCategory})} className={formInputClasses}>
+                    {PROJECT_CATEGORIES.map(cat => (
+                        <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                </select>
+            </div>
             <div className="flex justify-end space-x-2 pt-4">
                 <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Cancel</button>
                 <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Save Task</button>
@@ -65,9 +83,9 @@ const TodosView: React.FC = () => {
     }, [fetchTodos]);
 
 
-    const handleSaveTodo = async (text: string) => {
+    const handleSaveTodo = async (data: { text: string; category: ProjectCategory }) => {
         if (editingTodo) {
-            const todoUpdate: TodoUpdate = { text };
+            const todoUpdate: TodoUpdate = data;
             const { error } = await supabase.from('todos').update(todoUpdate).eq('id', editingTodo.id);
             if(error) {
                 console.error("Error updating todo:", error);
@@ -77,7 +95,7 @@ const TodosView: React.FC = () => {
             }
         } else {
             const newPosition = todos.length > 0 ? Math.max(...todos.map(t => t.position)) + 1 : 0;
-            const todoInsert: TodoInsert = { text, completed: false, position: newPosition };
+            const todoInsert: TodoInsert = { ...data, completed: false, position: newPosition };
             const { error } = await supabase.from('todos').insert(todoInsert);
             if(error) {
                 console.error("Error adding todo:", error);
@@ -147,18 +165,22 @@ const TodosView: React.FC = () => {
             </button>
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                 <div className="space-y-3">
-                    {todos.length > 0 ? todos.map((todo, index) => (
-                        <div key={todo.id} className="flex items-center bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group">
-                            <input type="checkbox" checked={todo.completed || false} onChange={() => toggleTodo(todo.id, todo.completed || false)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer" aria-labelledby={`todo-label-${todo.id}`} />
-                            <span id={`todo-label-${todo.id}`} className={`ml-3 flex-1 text-white ${todo.completed ? 'line-through text-gray-500' : ''}`}>{todo.text}</span>
-                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button aria-label={`Move task ${todo.text} up`} onClick={() => moveTodo(index, 'up')} disabled={index === 0} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowUpIcon className="h-5 w-5" /></button>
-                                <button aria-label={`Move task ${todo.text} down`} onClick={() => moveTodo(index, 'down')} disabled={index === todos.length - 1} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowDownIcon className="h-5 w-5" /></button>
-                                <button aria-label={`Edit task ${todo.text}`} onClick={() => { setEditingTodo(todo); setIsModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
-                                <button aria-label={`Delete task ${todo.text}`} onClick={() => deleteTodo(todo.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
+                    {todos.length > 0 ? todos.map((todo, index) => {
+                        const category = (todo.category as ProjectCategory) || ProjectCategory.Others;
+                        const categoryColor = CATEGORY_COLORS[category];
+                        return (
+                            <div key={todo.id} className={`flex items-center bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group border-l-4 ${categoryColor.border}`}>
+                                <input type="checkbox" checked={todo.completed || false} onChange={() => toggleTodo(todo.id, todo.completed || false)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer" aria-labelledby={`todo-label-${todo.id}`} />
+                                <span id={`todo-label-${todo.id}`} className={`ml-3 flex-1 text-white ${todo.completed ? 'line-through text-gray-500' : ''}`}>{todo.text}</span>
+                                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button aria-label={`Move task ${todo.text} up`} onClick={() => moveTodo(index, 'up')} disabled={index === 0} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowUpIcon className="h-5 w-5" /></button>
+                                    <button aria-label={`Move task ${todo.text} down`} onClick={() => moveTodo(index, 'down')} disabled={index === todos.length - 1} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowDownIcon className="h-5 w-5" /></button>
+                                    <button aria-label={`Edit task ${todo.text}`} onClick={() => { setEditingTodo(todo); setIsModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
+                                    <button aria-label={`Delete task ${todo.text}`} onClick={() => deleteTodo(todo.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
+                                </div>
                             </div>
-                        </div>
-                    )) : (
+                        )
+                    }) : (
                         <div className="text-center py-10">
                             <CheckCircleIcon className="mx-auto h-12 w-12 text-gray-500" />
                             <h3 className="mt-2 text-lg font-medium text-white">All clear!</h3>
