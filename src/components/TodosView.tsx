@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Project, Subtask, Database, SubtaskStatus, ProjectCategory } from '../types';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
+import useLocalStorage from '../hooks/useLocalStorage';
 import Modal from './Modal';
-import { PlusIcon, PencilIcon, TrashIcon, CheckCircleIcon } from './icons/Icons';
+import { PlusIcon, PencilIcon, TrashIcon, CheckCircleIcon, DragHandleIcon } from './icons/Icons';
 import { CATEGORY_COLORS } from '../constants';
 
 type SubtaskWithProject = Subtask & {
@@ -65,12 +66,17 @@ const TaskForm: React.FC<{
 };
 
 const TodosView: React.FC = () => {
-    const [tasks, setTasks] = useState<SubtaskWithProject[]>([]);
+    const [apiTasks, setApiTasks] = useState<SubtaskWithProject[]>([]);
     const [projects, setProjects] = useState<Project[]>([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingTask, setEditingTask] = useState<SubtaskWithProject | null>(null);
     const { addToast } = useToast();
+    const [orderedTaskIds, setOrderedTaskIds] = useLocalStorage<string[]>('todo-view-order', []);
+    
+    // Drag and Drop State
+    const [draggedId, setDraggedId] = useState<string | null>(null);
+    const [dragOverId, setDragOverId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         try {
@@ -80,7 +86,7 @@ const TodosView: React.FC = () => {
 
             const { data: subtasksData, error: subtasksError } = await supabase.from('subtasks').select('*, projects(*)').order('created_at', { ascending: false });
             if (subtasksError) throw subtasksError;
-            setTasks(subtasksData as SubtaskWithProject[] || []);
+            setApiTasks(subtasksData as SubtaskWithProject[] || []);
         } catch (error) {
             console.error("Error fetching data:", error);
             addToast('Error fetching tasks and projects', 'error');
@@ -102,29 +108,35 @@ const TodosView: React.FC = () => {
         };
     }, [fetchData]);
 
+    const sortedTasks = useMemo(() => {
+        if (apiTasks.length === 0) return [];
+        const taskMap = new Map(apiTasks.map(task => [task.id, task]));
+        const currentApiTaskIds = new Set(apiTasks.map(task => task.id));
+        const validOrderedIds = orderedTaskIds.filter(id => currentApiTaskIds.has(id));
+        const newApiTasks = apiTasks.filter(task => !validOrderedIds.includes(task.id));
+        const newFullOrder = [...validOrderedIds, ...newApiTasks.map(t => t.id)];
+
+        if (JSON.stringify(newFullOrder) !== JSON.stringify(orderedTaskIds)) {
+            setOrderedTaskIds(newFullOrder);
+        }
+
+        return newFullOrder.map(id => taskMap.get(id)).filter(Boolean) as SubtaskWithProject[];
+    }, [apiTasks, orderedTaskIds, setOrderedTaskIds]);
+    
     const handleSaveTask = async (data: { name: string; project_id: string; status: SubtaskStatus }) => {
         if (editingTask) {
             const taskUpdate: SubtaskUpdate = { name: data.name };
             const { error } = await supabase.from('subtasks').update(taskUpdate).eq('id', editingTask.id);
-            if(error) {
-                addToast('Error updating task', 'error');
-            } else {
-                addToast('Task updated', 'success');
-            }
+            if(error) addToast('Error updating task', 'error');
+            else addToast('Task updated', 'success');
         } else {
             const { data: subtasks, error: posError } = await supabase.from('subtasks').select('position').eq('project_id', data.project_id).order('position', { ascending: false }).limit(1);
-            if (posError) {
-                addToast('Error creating task', 'error');
-                return;
-            }
+            if (posError) { addToast('Error creating task', 'error'); return; }
             const newPosition = (subtasks?.[0]?.position ?? -1) + 1;
             const taskInsert: SubtaskInsert = { ...data, position: newPosition };
             const { error } = await supabase.from('subtasks').insert(taskInsert);
-            if(error) {
-                addToast('Error adding task', 'error');
-            } else {
-                addToast('Task added', 'success');
-            }
+            if(error) addToast('Error adding task', 'error');
+            else addToast('Task added', 'success');
         }
         setIsModalOpen(false);
         setEditingTask(null);
@@ -133,28 +145,57 @@ const TodosView: React.FC = () => {
     const toggleTaskStatus = async (task: SubtaskWithProject) => {
         const newStatus = task.status === SubtaskStatus.Completed ? SubtaskStatus.NotStarted : SubtaskStatus.Completed;
         const { error } = await supabase.from('subtasks').update({ status: newStatus }).eq('id', task.id);
-        if(error) {
-            addToast('Error changing task status', 'error');
-        }
+        if(error) addToast('Error changing task status', 'error');
     };
 
     const deleteTask = async (id: string) => {
         if(window.confirm('Delete this task? This will remove it from its project.')) {
             const { error } = await supabase.from('subtasks').delete().eq('id', id);
-            if(error) {
-                addToast('Error deleting task', 'error');
-            } else {
-                addToast('Task deleted', 'success');
-            }
+            if(error) addToast('Error deleting task', 'error');
+            else addToast('Task deleted', 'success');
         }
     };
     
-    const getValidCategory = (cat: string | null): ProjectCategory => {
-        if (cat && Object.values(ProjectCategory).includes(cat as ProjectCategory)) {
-            return cat as ProjectCategory;
-        }
-        return ProjectCategory.Others;
+    // --- Drag and Drop Handlers ---
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: SubtaskWithProject) => {
+        setDraggedId(task.id);
+        e.dataTransfer.effectAllowed = 'move';
     };
+
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+    };
+
+    const handleDragEnter = (task: SubtaskWithProject) => {
+        if (draggedId && draggedId !== task.id) {
+            setDragOverId(task.id);
+        }
+    };
+
+    const handleDragEnd = () => {
+        setDraggedId(null);
+        setDragOverId(null);
+    };
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropTargetTask: SubtaskWithProject) => {
+        e.preventDefault();
+        if (!draggedId || draggedId === dropTargetTask.id) {
+            handleDragEnd();
+            return;
+        }
+
+        const currentTaskIds = [...orderedTaskIds];
+        const dragIndex = currentTaskIds.indexOf(draggedId);
+        const dropIndex = currentTaskIds.indexOf(dropTargetTask.id);
+        
+        const [draggedItem] = currentTaskIds.splice(dragIndex, 1);
+        currentTaskIds.splice(dropIndex, 0, draggedItem);
+        
+        setOrderedTaskIds(currentTaskIds);
+        handleDragEnd();
+    };
+
+    const getValidCategory = (cat: string | null): ProjectCategory => (cat && Object.values(ProjectCategory).includes(cat as ProjectCategory)) ? cat as ProjectCategory : ProjectCategory.Others;
 
     if (loading) return <div className="text-center p-8">Loading tasks...</div>;
 
@@ -164,26 +205,36 @@ const TodosView: React.FC = () => {
                 <PlusIcon className="h-5 w-5 mr-2" />
                 Add New Task
             </button>
-            {projects.length === 0 && !loading && (
-                 <p className="text-center text-gray-500 italic">You must create a project before you can add tasks.</p>
-            )}
+            {projects.length === 0 && !loading && <p className="text-center text-gray-500 italic">You must create a project before you can add tasks.</p>}
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
                 <div className="space-y-3">
-                    {tasks.length > 0 ? tasks.map((task) => {
+                    {sortedTasks.length > 0 ? sortedTasks.map((task) => {
                         const projectCategory = getValidCategory(task.projects?.category || null);
                         const categoryColor = CATEGORY_COLORS[projectCategory];
                         const isCompleted = task.status === SubtaskStatus.Completed;
 
                         return (
-                            <div key={task.id} className={`flex items-center bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group border-l-4 ${categoryColor.border}`} title={`Project: ${task.projects?.name}`}>
-                                <input type="checkbox" checked={isCompleted} onChange={() => toggleTaskStatus(task)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer flex-shrink-0" aria-labelledby={`task-label-${task.id}`} />
-                                <div className="ml-3 flex-1">
-                                    <span id={`task-label-${task.id}`} className={`text-white ${isCompleted ? 'line-through text-gray-500' : ''}`}>{task.name}</span>
-                                    <p className="text-xs text-gray-400">{task.projects?.name}</p>
-                                </div>
-                                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button aria-label={`Edit task ${task.name}`} onClick={() => { setEditingTask(task); setIsModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
-                                    <button aria-label={`Delete task ${task.name}`} onClick={() => deleteTask(task.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
+                            <div key={task.id} className="relative" onDragEnter={() => handleDragEnter(task)}>
+                                {dragOverId === task.id && <div className="absolute top-[-2px] left-6 right-0 h-1 bg-indigo-500 rounded z-10" />}
+                                <div
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, task)}
+                                    onDragEnd={handleDragEnd}
+                                    onDragOver={handleDragOver}
+                                    onDrop={(e) => handleDrop(e, task)}
+                                    className={`flex items-center bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group border-l-4 transition-opacity ${categoryColor.border} ${draggedId === task.id ? 'opacity-30' : 'opacity-100'}`}
+                                    title={`Project: ${task.projects?.name}`}
+                                >
+                                    <DragHandleIcon className="h-5 w-5 text-gray-500 cursor-grab flex-shrink-0" />
+                                    <input type="checkbox" checked={isCompleted} onChange={() => toggleTaskStatus(task)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer flex-shrink-0 ml-3" aria-labelledby={`task-label-${task.id}`} />
+                                    <div className="ml-3 flex-1 overflow-hidden">
+                                        <span id={`task-label-${task.id}`} className={`text-white truncate ${isCompleted ? 'line-through text-gray-500' : ''}`}>{task.name}</span>
+                                        <p className="text-xs text-gray-400 truncate">{task.projects?.name}</p>
+                                    </div>
+                                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button aria-label={`Edit task ${task.name}`} onClick={() => { setEditingTask(task); setIsModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
+                                        <button aria-label={`Delete task ${task.name}`} onClick={() => deleteTask(task.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
+                                    </div>
                                 </div>
                             </div>
                         )
