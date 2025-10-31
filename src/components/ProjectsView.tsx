@@ -140,8 +140,8 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
     );
 };
 
-// Project Card (Collapsible)
-const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => void; onDelete: (id: string) => void; onSubtasksReordered: () => void; }> = ({ project, onEdit, onDelete, onSubtasksReordered }) => {
+// Project Row
+const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => void; onDelete: (id: string) => void; onSubtasksReordered: () => void; }> = ({ project, onEdit, onDelete, onSubtasksReordered }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
     const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
@@ -240,8 +240,8 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
     const statusColor = STATUS_COLORS[status];
 
     return (
-        <div className="bg-gray-800 rounded-lg border border-gray-700 transition-shadow hover:shadow-lg hover:border-gray-600">
-             <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 p-4">
+        <div>
+             <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 p-4 transition-colors hover:bg-gray-700/30">
                 <div className="truncate cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
                     <p className="font-bold text-white truncate" title={project.name}>{project.name}</p>
                 </div>
@@ -266,7 +266,7 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
                 </div>
             </div>
             {isExpanded && (
-                <div className="p-4 border-t border-gray-700 space-y-3">
+                <div className="p-4 border-t border-gray-700/50 bg-gray-900/20 space-y-3">
                     <h5 className="font-semibold text-gray-300">Subtasks</h5>
                     {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => (
                         <div key={st.id} className="flex flex-col sm:flex-row sm:items-center bg-gray-700 p-2.5 rounded-md group">
@@ -469,18 +469,20 @@ const ProjectsView: React.FC = () => {
                         return (
                             <div key={category}>
                                 <h3 className="text-xl font-bold mb-4 text-white border-b-2 border-gray-700 pb-2">{category}</h3>
-                                <div className="hidden lg:grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 px-4 pb-2 text-sm font-semibold text-gray-400">
-                                    <div className="text-left">Project</div>
-                                    <div className="text-left">Client</div>
-                                    <div className="text-left">Deadline</div>
-                                    <div className="text-left">Category</div>
-                                    <div className="text-left">Status</div>
-                                    <div className="text-right">Actions</div>
-                                </div>
-                                <div className="space-y-2 mt-2">
-                                    {categoryProjects.map(project => (
-                                        <ProjectCard key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtasksReordered={fetchProjects} />
-                                    ))}
+                                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+                                    <div className="hidden lg:grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 px-4 py-3 bg-gray-900/30 text-sm font-semibold text-gray-400">
+                                        <div className="text-left">Project</div>
+                                        <div className="text-left">Client</div>
+                                        <div className="text-left">Deadline</div>
+                                        <div className="text-left">Category</div>
+                                        <div className="text-left">Status</div>
+                                        <div className="text-right">Actions</div>
+                                    </div>
+                                    <div className="divide-y divide-gray-700/50">
+                                        {categoryProjects.map(project => (
+                                            <ProjectRow key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtasksReordered={fetchProjects} />
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
                         );
