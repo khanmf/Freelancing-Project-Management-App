@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Project, Subtask, Database, SubtaskStatus, ProjectCategory } from '../types';
-import { PROJECT_STATUSES, PROJECT_CATEGORIES, SUBTASK_STATUSES, CATEGORY_COLORS } from '../constants';
+import { Project, Subtask, Database, SubtaskStatus, ProjectCategory, ProjectStatus } from '../types';
+import { PROJECT_STATUSES, PROJECT_CATEGORIES, SUBTASK_STATUSES, CATEGORY_COLORS, STATUS_COLORS } from '../constants';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
 import Modal from './Modal';
@@ -210,15 +210,7 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
             onSubtasksReordered();
         }
     };
-    
-    const getStatusColor = (status: string) => {
-        switch (status) {
-          case 'To Do': return 'border-yellow-500';
-          case 'In Progress': return 'border-blue-500';
-          case 'Done': return 'border-green-500';
-        }
-    };
-    
+        
     const getSubtaskStatusColor = (status: string) => {
       switch(status) {
         case SubtaskStatus.NotStarted: return 'bg-gray-600';
@@ -234,31 +226,47 @@ const ProjectCard: React.FC<{ project: Project; onEdit: (project: Project) => vo
         }
         return ProjectCategory.Others;
     };
+    
+    const getValidStatus = (status: string | null): ProjectStatus => {
+        if (status && Object.values(ProjectStatus).includes(status as ProjectStatus)) {
+            return status as ProjectStatus;
+        }
+        return ProjectStatus.Todo;
+    }
 
     const category = getValidCategory(project.category);
     const categoryColor = CATEGORY_COLORS[category];
+    const status = getValidStatus(project.status);
+    const statusColor = STATUS_COLORS[status];
 
     return (
         <div className="bg-gray-800 rounded-lg border border-gray-700 transition-shadow hover:shadow-lg hover:border-gray-600">
-            <button aria-expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} className="w-full flex items-center p-4 text-left rounded-t-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
-                <div className={`w-2 h-10 rounded-full mr-4 flex-shrink-0 ${getStatusColor(project.status)}`}></div>
-                <div className="flex-1">
-                    <div className="flex items-center flex-wrap gap-x-2 gap-y-1">
-                        <h4 className="font-bold text-white">{project.name}</h4>
-                        <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${categoryColor.bg} ${categoryColor.text}`}>
-                            {category}
-                        </span>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">Client: {project.client} | Deadline: {project.deadline} {project.budget && ` - Budget: $${project.budget.toLocaleString()}`}</p>
+             <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 p-4">
+                <div className="truncate cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+                    <p className="font-bold text-white truncate" title={project.name}>{project.name}</p>
                 </div>
-                <ChevronDownIcon className={`h-6 w-6 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-            </button>
+                <div className="text-sm text-gray-400 truncate" title={project.client}>{project.client}</div>
+                <div className="text-sm text-gray-400">{project.deadline}</div>
+                <div>
+                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${categoryColor.bg} ${categoryColor.text}`}>
+                        {category}
+                    </span>
+                </div>
+                <div>
+                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${statusColor.bg} ${statusColor.text}`}>
+                        {status}
+                    </span>
+                </div>
+                <div className="flex items-center justify-end space-x-1">
+                    <button aria-label={`Edit project ${project.name}`} onClick={(e) => { e.stopPropagation(); onEdit(project); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800"><PencilIcon className="h-5 w-5" /></button>
+                    <button aria-label={`Delete project ${project.name}`} onClick={(e) => { e.stopPropagation(); onDelete(project.id); }} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800"><TrashIcon className="h-5 w-5" /></button>
+                    <button aria-expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
+                        <ChevronDownIcon className={`h-6 w-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                    </button>
+                </div>
+            </div>
             {isExpanded && (
                 <div className="p-4 border-t border-gray-700 space-y-3">
-                     <div className="flex justify-end space-x-2 mb-4">
-                        <button aria-label={`Edit project ${project.name}`} onClick={(e) => { e.stopPropagation(); onEdit(project); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800"><PencilIcon className="h-5 w-5" /></button>
-                        <button aria-label={`Delete project ${project.name}`} onClick={(e) => { e.stopPropagation(); onDelete(project.id); }} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800"><TrashIcon className="h-5 w-5" /></button>
-                    </div>
                     <h5 className="font-semibold text-gray-300">Subtasks</h5>
                     {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => (
                         <div key={st.id} className="flex flex-col sm:flex-row sm:items-center bg-gray-700 p-2.5 rounded-md group">
@@ -461,7 +469,15 @@ const ProjectsView: React.FC = () => {
                         return (
                             <div key={category}>
                                 <h3 className="text-xl font-bold mb-4 text-white border-b-2 border-gray-700 pb-2">{category}</h3>
-                                <div className="space-y-4">
+                                <div className="hidden lg:grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 px-4 pb-2 text-sm font-semibold text-gray-400">
+                                    <div>Project</div>
+                                    <div>Client</div>
+                                    <div>Deadline</div>
+                                    <div>Category</div>
+                                    <div>Status</div>
+                                    <div className="text-right">Actions</div>
+                                </div>
+                                <div className="space-y-2 mt-2">
                                     {categoryProjects.map(project => (
                                         <ProjectCard key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtasksReordered={fetchProjects} />
                                     ))}

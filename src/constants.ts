@@ -45,3 +45,9 @@ export const CATEGORY_COLORS: Record<ProjectCategory, { border: string; bg: stri
   [ProjectCategory.Chem]: { border: 'border-teal-400', bg: 'bg-teal-500/20', text: 'text-teal-300' },
   [ProjectCategory.Others]: { border: 'border-gray-400', bg: 'bg-gray-500/20', text: 'text-gray-300' },
 };
+
+export const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string; }> = {
+  [ProjectStatus.Todo]: { bg: 'bg-yellow-500/20', text: 'text-yellow-300' },
+  [ProjectStatus.InProgress]: { bg: 'bg-blue-500/20', text: 'text-blue-300' },
+  [ProjectStatus.Done]: { bg: 'bg-green-500/20', text: 'text-green-300' },
+};
