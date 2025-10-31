@@ -470,11 +470,11 @@ const ProjectsView: React.FC = () => {
                             <div key={category}>
                                 <h3 className="text-xl font-bold mb-4 text-white border-b-2 border-gray-700 pb-2">{category}</h3>
                                 <div className="hidden lg:grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 px-4 pb-2 text-sm font-semibold text-gray-400">
-                                    <div>Project</div>
-                                    <div>Client</div>
-                                    <div>Deadline</div>
-                                    <div>Category</div>
-                                    <div>Status</div>
+                                    <div className="text-left">Project</div>
+                                    <div className="text-left">Client</div>
+                                    <div className="text-left">Deadline</div>
+                                    <div className="text-left">Category</div>
+                                    <div className="text-left">Status</div>
                                     <div className="text-right">Actions</div>
                                 </div>
                                 <div className="space-y-2 mt-2">
