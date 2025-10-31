@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Project, Subtask, Database, SubtaskStatus, ProjectCategory } from '../types';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
@@ -12,6 +12,7 @@ type SubtaskWithProject = Subtask & {
 };
 type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
 type SubtaskUpdate = Database['public']['Tables']['subtasks']['Update'];
+type SortOrder = 'my-order' | 'project' | 'category';
 
 const TaskForm: React.FC<{ 
     task: SubtaskWithProject | null; 
@@ -73,10 +74,8 @@ const TodosView: React.FC = () => {
     const [editingTask, setEditingTask] = useState<SubtaskWithProject | null>(null);
     const { addToast } = useToast();
     const [orderedTaskIds, setOrderedTaskIds] = useLocalStorage<string[]>('todo-view-order', []);
-    
-    // Drag and Drop State
+    const [sortOrder, setSortOrder] = useState<SortOrder>('my-order');
     const [draggedId, setDraggedId] = useState<string | null>(null);
-    const [dragOverId, setDragOverId] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         try {
@@ -102,13 +101,10 @@ const TodosView: React.FC = () => {
                 fetchData();
             })
             .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
+        return () => { supabase.removeChannel(channel); };
     }, [fetchData]);
 
-    const sortedTasks = useMemo(() => {
+    const manuallySortedTasks = useMemo(() => {
         if (apiTasks.length === 0) return [];
         const taskMap = new Map(apiTasks.map(task => [task.id, task]));
         const currentApiTaskIds = new Set(apiTasks.map(task => task.id));
@@ -122,6 +118,17 @@ const TodosView: React.FC = () => {
 
         return newFullOrder.map(id => taskMap.get(id)).filter(Boolean) as SubtaskWithProject[];
     }, [apiTasks, orderedTaskIds, setOrderedTaskIds]);
+
+    const displayedTasks = useMemo(() => {
+        const tasksToSort = [...apiTasks];
+        if (sortOrder === 'project') {
+            return tasksToSort.sort((a, b) => (a.projects?.name || '').localeCompare(b.projects?.name || ''));
+        }
+        if (sortOrder === 'category') {
+             return tasksToSort.sort((a, b) => (a.projects?.category || '').localeCompare(b.projects?.category || ''));
+        }
+        return manuallySortedTasks;
+    }, [apiTasks, sortOrder, manuallySortedTasks]);
     
     const handleSaveTask = async (data: { name: string; project_id: string; status: SubtaskStatus }) => {
         if (editingTask) {
@@ -156,41 +163,24 @@ const TodosView: React.FC = () => {
         }
     };
     
-    // --- Drag and Drop Handlers ---
-    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, task: SubtaskWithProject) => {
-        setDraggedId(task.id);
+    const handleDragStart = (e: React.DragEvent<HTMLDivElement>, taskId: string) => {
+        setDraggedId(taskId);
         e.dataTransfer.effectAllowed = 'move';
     };
 
-    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    const handleDragEnd = () => setDraggedId(null);
+
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropTargetTaskId: string) => {
         e.preventDefault();
-    };
-
-    const handleDragEnter = (task: SubtaskWithProject) => {
-        if (draggedId && draggedId !== task.id) {
-            setDragOverId(task.id);
-        }
-    };
-
-    const handleDragEnd = () => {
-        setDraggedId(null);
-        setDragOverId(null);
-    };
-
-    const handleDrop = (e: React.DragEvent<HTMLDivElement>, dropTargetTask: SubtaskWithProject) => {
-        e.preventDefault();
-        if (!draggedId || draggedId === dropTargetTask.id) {
+        if (!draggedId || draggedId === dropTargetTaskId) {
             handleDragEnd();
             return;
         }
-
         const currentTaskIds = [...orderedTaskIds];
         const dragIndex = currentTaskIds.indexOf(draggedId);
-        const dropIndex = currentTaskIds.indexOf(dropTargetTask.id);
-        
+        const dropIndex = currentTaskIds.indexOf(dropTargetTaskId);
         const [draggedItem] = currentTaskIds.splice(dragIndex, 1);
         currentTaskIds.splice(dropIndex, 0, draggedItem);
-        
         setOrderedTaskIds(currentTaskIds);
         handleDragEnd();
     };
@@ -201,40 +191,67 @@ const TodosView: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <button onClick={() => { setEditingTask(null); setIsModalOpen(true); }} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-indigo-500" disabled={projects.length === 0}>
-                <PlusIcon className="h-5 w-5 mr-2" />
-                Add New Task
-            </button>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <button onClick={() => { setEditingTask(null); setIsModalOpen(true); }} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-indigo-500" disabled={projects.length === 0}>
+                    <PlusIcon className="h-5 w-5 mr-2" />
+                    Add New Task
+                </button>
+                <div>
+                    <label htmlFor="sort-order" className="text-sm font-medium text-gray-300 mr-2">Sort by:</label>
+                    <select id="sort-order" value={sortOrder} onChange={e => setSortOrder(e.target.value as SortOrder)} className="bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
+                        <option value="my-order">My Order</option>
+                        <option value="project">Project</option>
+                        <option value="category">Category</option>
+                    </select>
+                </div>
+            </div>
+
             {projects.length === 0 && !loading && <p className="text-center text-gray-500 italic">You must create a project before you can add tasks.</p>}
+            
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div className="space-y-3">
-                    {sortedTasks.length > 0 ? sortedTasks.map((task) => {
+                <div className="grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-4 px-3 pb-2 border-b border-gray-700 text-sm font-semibold text-gray-400">
+                    <div className="w-5" aria-hidden="true"></div>
+                    <div className="w-5" aria-hidden="true"></div>
+                    <div>Task</div>
+                    <div>Project</div>
+                    <div>Category</div>
+                    <div className="w-20 text-right">Actions</div>
+                </div>
+                <div className="space-y-2 mt-2">
+                    {displayedTasks.length > 0 ? displayedTasks.map((task) => {
                         const projectCategory = getValidCategory(task.projects?.category || null);
                         const categoryColor = CATEGORY_COLORS[projectCategory];
                         const isCompleted = task.status === SubtaskStatus.Completed;
 
                         return (
-                            <div key={task.id} className="relative" onDragEnter={() => handleDragEnter(task)}>
-                                {dragOverId === task.id && <div className="absolute top-[-2px] left-6 right-0 h-1 bg-indigo-500 rounded z-10" />}
-                                <div
-                                    draggable
-                                    onDragStart={(e) => handleDragStart(e, task)}
-                                    onDragEnd={handleDragEnd}
-                                    onDragOver={handleDragOver}
-                                    onDrop={(e) => handleDrop(e, task)}
-                                    className={`flex items-center bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group border-l-4 transition-opacity ${categoryColor.border} ${draggedId === task.id ? 'opacity-30' : 'opacity-100'}`}
-                                    title={`Project: ${task.projects?.name}`}
-                                >
-                                    <DragHandleIcon className="h-5 w-5 text-gray-500 cursor-grab flex-shrink-0" />
-                                    <input type="checkbox" checked={isCompleted} onChange={() => toggleTaskStatus(task)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer flex-shrink-0 ml-3" aria-labelledby={`task-label-${task.id}`} />
-                                    <div className="ml-3 flex-1 overflow-hidden">
-                                        <span id={`task-label-${task.id}`} className={`text-white truncate ${isCompleted ? 'line-through text-gray-500' : ''}`}>{task.name}</span>
-                                        <p className="text-xs text-gray-400 truncate">{task.projects?.name}</p>
-                                    </div>
-                                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <button aria-label={`Edit task ${task.name}`} onClick={() => { setEditingTask(task); setIsModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
-                                        <button aria-label={`Delete task ${task.name}`} onClick={() => deleteTask(task.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
-                                    </div>
+                            <div
+                                key={task.id}
+                                draggable={sortOrder === 'my-order'}
+                                onDragStart={sortOrder === 'my-order' ? (e) => handleDragStart(e, task.id) : undefined}
+                                onDragEnd={sortOrder === 'my-order' ? handleDragEnd : undefined}
+                                onDragOver={sortOrder === 'my-order' ? (e) => e.preventDefault() : undefined}
+                                onDrop={sortOrder === 'my-order' ? (e) => handleDrop(e, task.id) : undefined}
+                                className={`grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-4 bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group transition-opacity ${draggedId === task.id ? 'opacity-30' : 'opacity-100'}`}
+                                title={`Project: ${task.projects?.name} | Category: ${projectCategory}`}
+                            >
+                                <div className="flex items-center justify-center">
+                                    {sortOrder === 'my-order' ? (
+                                        <DragHandleIcon className="h-5 w-5 text-gray-500 cursor-grab" />
+                                    ) : (
+                                        <div className="h-5 w-5" aria-hidden="true"></div>
+                                    )}
+                                </div>
+                                <input type="checkbox" checked={isCompleted} onChange={() => toggleTaskStatus(task)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer" aria-labelledby={`task-label-${task.id}`} />
+                                <span id={`task-label-${task.id}`} className={`text-white truncate ${isCompleted ? 'line-through text-gray-500' : ''}`}>{task.name}</span>
+                                <p className="text-sm text-gray-400 truncate">{task.projects?.name}</p>
+                                <div>
+                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${categoryColor.bg} ${categoryColor.text}`}>
+                                        {projectCategory}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button aria-label={`Edit task ${task.name}`} onClick={() => { setEditingTask(task); setIsModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
+                                    <button aria-label={`Delete task ${task.name}`} onClick={() => deleteTask(task.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
                                 </div>
                             </div>
                         )
