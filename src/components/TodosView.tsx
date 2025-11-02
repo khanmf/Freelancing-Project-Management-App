@@ -209,12 +209,14 @@ const TodosView: React.FC = () => {
             {projects.length === 0 && !loading && <p className="text-center text-gray-500 italic">You must create a project before you can add tasks.</p>}
             
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div className="grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-4 px-3 pb-2 border-b border-gray-700 text-sm font-semibold text-gray-400">
+                <div className="grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_auto] items-center gap-4 px-3 pb-2 border-b border-gray-700 text-sm font-semibold text-gray-400">
                     <div className="w-5" aria-hidden="true"></div>
                     <div className="w-5" aria-hidden="true"></div>
                     <div>Task</div>
                     <div>Project</div>
                     <div>Category</div>
+                    <div>Assigned To</div>
+                    <div>Deadline</div>
                     <div className="w-20 text-right">Actions</div>
                 </div>
                 <div className="space-y-2 mt-2">
@@ -231,7 +233,7 @@ const TodosView: React.FC = () => {
                                 onDragEnd={sortOrder === 'my-order' ? handleDragEnd : undefined}
                                 onDragOver={sortOrder === 'my-order' ? (e) => e.preventDefault() : undefined}
                                 onDrop={sortOrder === 'my-order' ? (e) => handleDrop(e, task.id) : undefined}
-                                className={`grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-4 bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group transition-opacity ${draggedId === task.id ? 'opacity-30' : 'opacity-100'}`}
+                                className={`grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_auto] items-center gap-4 bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group transition-opacity ${draggedId === task.id ? 'opacity-30' : 'opacity-100'}`}
                                 title={`Project: ${task.projects?.name} | Category: ${projectCategory}`}
                             >
                                 <div className="flex items-center justify-center">
@@ -249,6 +251,8 @@ const TodosView: React.FC = () => {
                                         {projectCategory}
                                     </span>
                                 </div>
+                                <p className="text-sm text-gray-400 truncate">{task.assigned_to || '-'}</p>
+                                <p className="text-sm text-gray-400 truncate">{task.deadline || '-'}</p>
                                 <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button aria-label={`Edit task ${task.name}`} onClick={() => { setEditingTask(task); setIsModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
                                     <button aria-label={`Delete task ${task.name}`} onClick={() => deleteTask(task.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
