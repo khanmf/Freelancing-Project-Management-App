@@ -5,7 +5,7 @@ import { useToast } from '../hooks/useToast';
 import useLocalStorage from '../hooks/useLocalStorage';
 import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, CheckCircleIcon, DragHandleIcon } from './icons/Icons';
-import { CATEGORY_COLORS } from '../constants';
+import { SUBTASK_STATUSES } from '../constants';
 
 type SubtaskWithProject = Subtask & {
     projects: Database['public']['Tables']['projects']['Row'] | null;
@@ -14,28 +14,46 @@ type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
 type SubtaskUpdate = Database['public']['Tables']['subtasks']['Update'];
 type SortOrder = 'my-order' | 'project' | 'category';
 
-const TaskForm: React.FC<{ 
-    task: SubtaskWithProject | null; 
+const TaskForm: React.FC<{
+    task: SubtaskWithProject | null;
     projects: Project[];
-    onSave: (data: { name: string; project_id: string; status: SubtaskStatus }) => void; 
-    onCancel: () => void; 
+    onSave: (data: { 
+        name: string; 
+        project_id: string; 
+        status: SubtaskStatus;
+        assigned_to: string | null;
+        deadline: string | null;
+    }) => void;
+    onCancel: () => void;
 }> = ({ task, projects, onSave, onCancel }) => {
-    const [name, setName] = useState(task?.name || '');
-    const [projectId, setProjectId] = useState(task?.project_id || (projects[0]?.id || ''));
+    const [formData, setFormData] = useState({
+        name: task?.name || '',
+        project_id: task?.project_id || (projects[0]?.id || ''),
+        status: (task?.status as SubtaskStatus) || SubtaskStatus.NotStarted,
+        assigned_to: task?.assigned_to || '',
+        deadline: task?.deadline || '',
+    });
 
     useEffect(() => {
-        if (!task && projects.length > 0 && !projectId) {
-            setProjectId(projects[0].id);
+        if (!task && projects.length > 0 && !formData.project_id) {
+             setFormData(prev => ({...prev, project_id: projects[0].id}));
         }
-    }, [projects, task, projectId]);
+    }, [projects, task, formData.project_id]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        if (name.trim() && projectId) {
-            onSave({ 
-                name, 
-                project_id: projectId, 
-                status: (task?.status as SubtaskStatus) || SubtaskStatus.NotStarted 
+        if (formData.name.trim() && formData.project_id) {
+            onSave({
+                name: formData.name,
+                project_id: formData.project_id,
+                status: formData.status,
+                assigned_to: formData.assigned_to || null,
+                deadline: formData.deadline || null,
             });
         }
     };
@@ -46,17 +64,31 @@ const TaskForm: React.FC<{
         <form onSubmit={handleSubmit} className="space-y-4">
             <div>
                 <label className="block text-sm font-medium text-gray-300">Task Name</label>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} className={formInputClasses} placeholder="Enter a task..." required />
+                <input type="text" name="name" value={formData.name} onChange={handleInputChange} className={formInputClasses} placeholder="Enter a task..." required />
             </div>
             <div>
                 <label className="block text-sm font-medium text-gray-300">Project</label>
-                <select value={projectId} onChange={e => setProjectId(e.target.value)} className={formInputClasses} disabled={!!task} required>
+                <select name="project_id" value={formData.project_id} onChange={handleInputChange} className={formInputClasses} disabled={!!task} required>
                     {projects.length === 0 && <option>No projects available</option>}
                     {projects.map(p => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                 </select>
                 {!!task && <p className="text-xs text-gray-500 mt-1">Cannot change the project of an existing task.</p>}
+            </div>
+             <div>
+                <label className="block text-sm font-medium text-gray-300">Assigned To</label>
+                <input type="text" name="assigned_to" value={formData.assigned_to || ''} onChange={handleInputChange} className={formInputClasses} placeholder="e.g., John Doe" />
+            </div>
+             <div>
+                <label className="block text-sm font-medium text-gray-300">Deadline</label>
+                <input type="date" name="deadline" value={formData.deadline || ''} onChange={handleInputChange} className={formInputClasses} />
+            </div>
+            <div>
+                <label className="block text-sm font-medium text-gray-300">Status</label>
+                <select name="status" value={formData.status} onChange={handleInputChange} className={formInputClasses}>
+                    {SUBTASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
             </div>
             <div className="flex justify-end space-x-2 pt-4">
                 <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Cancel</button>
@@ -130,9 +162,14 @@ const TodosView: React.FC = () => {
         return manuallySortedTasks;
     }, [apiTasks, sortOrder, manuallySortedTasks]);
     
-    const handleSaveTask = async (data: { name: string; project_id: string; status: SubtaskStatus }) => {
+    const handleSaveTask = async (data: { name: string; project_id: string; status: SubtaskStatus; assigned_to: string | null; deadline: string | null; }) => {
         if (editingTask) {
-            const taskUpdate: SubtaskUpdate = { name: data.name };
+            const taskUpdate: SubtaskUpdate = { 
+                name: data.name,
+                status: data.status,
+                assigned_to: data.assigned_to,
+                deadline: data.deadline
+            };
             const { error } = await supabase.from('subtasks').update(taskUpdate).eq('id', editingTask.id);
             if(error) addToast('Error updating task', 'error');
             else addToast('Task updated', 'success');
@@ -185,8 +222,6 @@ const TodosView: React.FC = () => {
         handleDragEnd();
     };
 
-    const getValidCategory = (cat: string | null): ProjectCategory => (cat && Object.values(ProjectCategory).includes(cat as ProjectCategory)) ? cat as ProjectCategory : ProjectCategory.Others;
-
     if (loading) return <div className="text-center p-8">Loading tasks...</div>;
 
     return (
@@ -209,20 +244,17 @@ const TodosView: React.FC = () => {
             {projects.length === 0 && !loading && <p className="text-center text-gray-500 italic">You must create a project before you can add tasks.</p>}
             
             <div className="bg-gray-800 rounded-lg p-4 border border-gray-700">
-                <div className="grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_auto] items-center gap-4 px-3 pb-2 border-b border-gray-700 text-sm font-semibold text-gray-400">
+                <div className="grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-4 px-3 pb-2 border-b border-gray-700 text-sm font-semibold text-gray-400">
                     <div className="w-5" aria-hidden="true"></div>
                     <div className="w-5" aria-hidden="true"></div>
                     <div>Task</div>
                     <div>Project</div>
-                    <div>Category</div>
                     <div>Assigned To</div>
                     <div>Deadline</div>
                     <div className="w-20 text-right">Actions</div>
                 </div>
                 <div className="space-y-2 mt-2">
                     {displayedTasks.length > 0 ? displayedTasks.map((task) => {
-                        const projectCategory = getValidCategory(task.projects?.category || null);
-                        const categoryColor = CATEGORY_COLORS[projectCategory];
                         const isCompleted = task.status === SubtaskStatus.Completed;
 
                         return (
@@ -233,8 +265,8 @@ const TodosView: React.FC = () => {
                                 onDragEnd={sortOrder === 'my-order' ? handleDragEnd : undefined}
                                 onDragOver={sortOrder === 'my-order' ? (e) => e.preventDefault() : undefined}
                                 onDrop={sortOrder === 'my-order' ? (e) => handleDrop(e, task.id) : undefined}
-                                className={`grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_minmax(0,1.5fr)_auto] items-center gap-4 bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group transition-opacity ${draggedId === task.id ? 'opacity-30' : 'opacity-100'}`}
-                                title={`Project: ${task.projects?.name} | Category: ${projectCategory}`}
+                                className={`grid grid-cols-[auto_auto_minmax(0,3fr)_minmax(0,2fr)_minmax(0,2fr)_minmax(0,2fr)_auto] items-center gap-4 bg-gray-700 p-3 rounded-md hover:bg-gray-600/50 group transition-opacity ${draggedId === task.id ? 'opacity-30' : 'opacity-100'}`}
+                                title={`Project: ${task.projects?.name}`}
                             >
                                 <div className="flex items-center justify-center">
                                     {sortOrder === 'my-order' ? (
@@ -246,11 +278,6 @@ const TodosView: React.FC = () => {
                                 <input type="checkbox" checked={isCompleted} onChange={() => toggleTaskStatus(task)} className="h-5 w-5 rounded bg-gray-600 border-gray-500 text-indigo-600 focus:ring-indigo-500 cursor-pointer" aria-labelledby={`task-label-${task.id}`} />
                                 <span id={`task-label-${task.id}`} className={`text-white truncate ${isCompleted ? 'line-through text-gray-500' : ''}`}>{task.name}</span>
                                 <p className="text-sm text-gray-400 truncate">{task.projects?.name}</p>
-                                <div>
-                                    <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${categoryColor.bg} ${categoryColor.text}`}>
-                                        {projectCategory}
-                                    </span>
-                                </div>
                                 <p className="text-sm text-gray-400 truncate">{task.assigned_to || '-'}</p>
                                 <p className="text-sm text-gray-400 truncate">{task.deadline || '-'}</p>
                                 <div className="flex items-center justify-end space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
