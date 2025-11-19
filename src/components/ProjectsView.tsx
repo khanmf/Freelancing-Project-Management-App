@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Project, Subtask, Database, SubtaskStatus, ProjectCategory, ProjectStatus } from '../types';
 import { PROJECT_STATUSES, PROJECT_CATEGORIES, SUBTASK_STATUSES, CATEGORY_COLORS, STATUS_COLORS } from '../constants';
@@ -26,31 +27,31 @@ const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Omit<Su
         onSave(formData);
     };
     
-    const formInputClasses = "mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800";
-
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-                <label className="block text-sm font-medium text-gray-300">Subtask Name</label>
-                <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className={formInputClasses} required />
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Subtask Name</label>
+                <input type="text" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} className="input-field w-full" required />
             </div>
-             <div>
-                <label className="block text-sm font-medium text-gray-300">Assigned To</label>
-                <input type="text" placeholder="e.g., John Doe" value={formData.assigned_to || ''} onChange={(e) => setFormData({...formData, assigned_to: e.target.value})} className={formInputClasses} />
-            </div>
-             <div>
-                <label className="block text-sm font-medium text-gray-300">Deadline</label>
-                <input type="date" value={formData.deadline || ''} onChange={(e) => setFormData({...formData, deadline: e.target.value})} className={formInputClasses} />
+             <div className="grid grid-cols-2 gap-4">
+                 <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Assigned To</label>
+                    <input type="text" placeholder="e.g., John Doe" value={formData.assigned_to || ''} onChange={(e) => setFormData({...formData, assigned_to: e.target.value})} className="input-field w-full" />
+                </div>
+                 <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Deadline</label>
+                    <input type="date" value={formData.deadline || ''} onChange={(e) => setFormData({...formData, deadline: e.target.value})} className="input-field w-full" />
+                </div>
             </div>
             <div>
-                <label className="block text-sm font-medium text-gray-300">Status</label>
-                <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value as SubtaskStatus})} className={formInputClasses}>
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Status</label>
+                <select value={formData.status} onChange={(e) => setFormData({...formData, status: e.target.value as SubtaskStatus})} className="input-field w-full">
                     {SUBTASK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
             </div>
-            <div className="flex justify-end space-x-2 pt-4">
-                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Save</button>
+            <div className="flex justify-end space-x-3 pt-4 border-t border-white/5">
+                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 transition-all">Save</button>
             </div>
         </form>
     );
@@ -66,9 +67,6 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
     const [newSubtask, setNewSubtask] = useState('');
 
     useEffect(() => {
-        // This effect now ONLY runs when the modal is opened for a specific project
-        // or when a new AI project is scaffolded. It won't re-run on every parent render
-        // or keystroke, which fixes the "focus stealing" bug.
         setFormData({
             name: project?.name || '',
             client: project?.client || '',
@@ -78,7 +76,7 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
             budget: project?.budget || null,
         });
         setSubtasks(project?.subtasks?.map(st => st.name) || prefilledSubtasks);
-    }, [project?.id, JSON.stringify(prefilledSubtasks)]); // Depend on stable values
+    }, [project?.id, JSON.stringify(prefilledSubtasks)]);
 
     const handleAddSubtask = () => {
         if (newSubtask.trim()) {
@@ -98,43 +96,58 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
         onSave(finalProject, newSubtaskObjects);
     };
 
-    const formInputClasses = "block w-full bg-gray-700 border border-gray-600 rounded-md py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800";
-
     return (
-        <form onSubmit={handleSubmit} className="space-y-4">
-            <input type="text" placeholder="Project Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={formInputClasses} required />
-            <input type="text" placeholder="Client" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} className={formInputClasses} required />
-            <input type="date" value={formData.deadline} onChange={(e) => setFormData({ ...formData, deadline: e.target.value })} className={formInputClasses} required />
-             <div>
-                <label className="block text-sm font-medium text-gray-300">Budget ($)</label>
-                <input type="number" placeholder="e.g., 1500" value={formData.budget || ''} onChange={(e) => setFormData({ ...formData, budget: e.target.value ? Number(e.target.value) : null })} className={formInputClasses} />
-            </div>
-             <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className={formInputClasses}>
-                {PROJECT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-            </select>
-            <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className={formInputClasses}>
-                {PROJECT_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
-            </select>
-            
+        <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <h4 className="text-md font-medium text-gray-300 mb-2">Subtasks</h4>
-              <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
+                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Project Details</label>
+                <div className="space-y-3">
+                    <input type="text" placeholder="Project Name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input-field w-full" required />
+                    <div className="grid grid-cols-2 gap-3">
+                        <input type="text" placeholder="Client" value={formData.client} onChange={(e) => setFormData({ ...formData, client: e.target.value })} className="input-field w-full" required />
+                        <input type="date" value={formData.deadline} onChange={(e) => setFormData({ ...formData, deadline: e.target.value })} className="input-field w-full" required />
+                    </div>
+                </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-3">
+                <div>
+                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Budget ($)</label>
+                     <input type="number" placeholder="1500" value={formData.budget || ''} onChange={(e) => setFormData({ ...formData, budget: e.target.value ? Number(e.target.value) : null })} className="input-field w-full" />
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Category</label>
+                    <select value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="input-field w-full">
+                        {PROJECT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Status</label>
+                    <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value })} className="input-field w-full">
+                        {PROJECT_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                </div>
+            </div>
+            
+            <div className="pt-2">
+              <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Subtasks</label>
+              <div className="bg-slate-900/50 rounded-lg border border-white/5 p-3 space-y-2 max-h-48 overflow-y-auto">
                 {subtasks.map((name, index) => (
-                    <div key={index} className="flex items-center bg-gray-600 p-2 rounded">
-                        <span className="text-white flex-1">{name}</span>
-                        <button type="button" onClick={() => handleDeleteSubtask(index)} aria-label={`Delete subtask: ${name}`} className="text-gray-400 hover:text-red-500 rounded-full p-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-600"><TrashIcon className="h-4 w-4"/></button>
+                    <div key={index} className="flex items-center justify-between bg-white/5 px-3 py-2 rounded-md group">
+                        <span className="text-slate-200 text-sm">{name}</span>
+                        <button type="button" onClick={() => handleDeleteSubtask(index)} className="text-slate-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"><TrashIcon className="h-4 w-4"/></button>
                     </div>
                 ))}
+                {subtasks.length === 0 && <p className="text-xs text-slate-500 italic text-center py-2">No subtasks added yet.</p>}
               </div>
-              <div className="flex mt-2 space-x-2">
-                  <input type="text" value={newSubtask} onChange={e => setNewSubtask(e.target.value)} placeholder="New subtask name" className={formInputClasses} />
-                  <button type="button" onClick={handleAddSubtask} className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Add</button>
+              <div className="flex mt-3 space-x-2">
+                  <input type="text" value={newSubtask} onChange={e => setNewSubtask(e.target.value)} placeholder="Enter new subtask..." className="input-field flex-1 text-sm" />
+                  <button type="button" onClick={handleAddSubtask} className="px-4 py-2 text-sm font-medium text-white bg-white/10 rounded-lg hover:bg-white/20 border border-white/5 transition-colors">Add</button>
               </div>
             </div>
 
-            <div className="flex justify-end space-x-2 pt-4">
-                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Cancel</button>
-                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Save Project</button>
+            <div className="flex justify-end space-x-3 pt-4 border-t border-white/5">
+                <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">Cancel</button>
+                <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 transition-all">Save Project</button>
             </div>
         </form>
     );
@@ -152,7 +165,6 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
             const subtaskUpdate: SubtaskUpdate = subtaskData;
             const { error } = await supabase.from('subtasks').update(subtaskUpdate).eq('id', editingSubtask.id);
             if(error) {
-                console.error("Error updating subtask", error);
                 addToast('Error updating subtask', 'error');
             } else {
                 addToast('Subtask updated', 'success');
@@ -162,7 +174,6 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
             const subtaskInsert: SubtaskInsert = { ...subtaskData, project_id: project.id, position: newPosition };
             const { error } = await supabase.from('subtasks').insert(subtaskInsert);
              if(error) {
-                console.error("Error creating subtask", error);
                 addToast('Error creating subtask', 'error');
             } else {
                 addToast('Subtask added', 'success');
@@ -176,7 +187,6 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
         if(window.confirm('Delete this subtask?')) {
             const { error } = await supabase.from('subtasks').delete().eq('id', subtaskId);
             if(error) {
-                console.error("Error deleting subtask", error);
                 addToast('Error deleting subtask', 'error');
             } else {
                 addToast('Subtask deleted', 'success');
@@ -204,7 +214,6 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
 
         const { error } = await supabase.from('subtasks').upsert(updates);
         if (error) {
-            console.error("Error reordering subtasks:", error);
             addToast('Error reordering subtasks', 'error');
         } else {
             onSubtasksReordered();
@@ -213,10 +222,10 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
         
     const getSubtaskStatusColor = (status: string) => {
       switch(status) {
-        case SubtaskStatus.NotStarted: return 'bg-gray-600';
-        case SubtaskStatus.InProgress: return 'bg-blue-600';
-        case SubtaskStatus.Completed: return 'bg-green-600';
-        default: return 'bg-gray-600';
+        case SubtaskStatus.NotStarted: return 'bg-slate-700 text-slate-300 border-slate-600';
+        case SubtaskStatus.InProgress: return 'bg-blue-900/40 text-blue-300 border-blue-800';
+        case SubtaskStatus.Completed: return 'bg-emerald-900/40 text-emerald-300 border-emerald-800';
+        default: return 'bg-slate-700 text-slate-300';
       }
     };
 
@@ -240,58 +249,78 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
     const statusColor = STATUS_COLORS[status];
 
     return (
-        <div>
-             <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 p-4 transition-colors hover:bg-gray-700/30">
-                <div className="truncate cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
-                    <p className="font-bold text-white truncate" title={project.name}>{project.name}</p>
+        <div className={`group transition-all duration-300 border-b border-white/5 last:border-0 hover:bg-white/[0.02] ${isExpanded ? 'bg-white/[0.02]' : ''}`}>
+             <div className="grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-6 p-5 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
+                <div className="flex items-center space-x-3 overflow-hidden">
+                     <div className={`w-1.5 h-1.5 rounded-full shadow-[0_0_8px] ${status === ProjectStatus.Done ? 'bg-emerald-400 shadow-emerald-500/50' : status === ProjectStatus.InProgress ? 'bg-blue-400 shadow-blue-500/50' : 'bg-amber-400 shadow-amber-500/50'}`}></div>
+                    <p className="font-semibold text-slate-100 truncate text-base" title={project.name}>{project.name}</p>
                 </div>
-                <div className="text-sm text-gray-400 truncate" title={project.client}>{project.client}</div>
-                <div className="text-sm text-gray-400">{project.deadline}</div>
+                <div className="text-sm text-slate-400 truncate font-medium" title={project.client}>{project.client}</div>
+                <div className="text-sm text-slate-400 font-mono">{project.deadline}</div>
                 <div>
-                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${categoryColor.bg} ${categoryColor.text}`}>
+                     <span className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap border backdrop-blur-sm ${categoryColor.bg} ${categoryColor.text} ${categoryColor.border} shadow-sm`}>
                         {category}
                     </span>
                 </div>
                 <div>
-                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full whitespace-nowrap ${statusColor.bg} ${statusColor.text}`}>
+                     <span className={`px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap border backdrop-blur-sm ${statusColor.bg} ${statusColor.text} border-transparent ${statusColor.ring}`}>
                         {status}
                     </span>
                 </div>
-                <div className="flex items-center justify-end space-x-1">
-                    <button aria-label={`Edit project ${project.name}`} onClick={(e) => { e.stopPropagation(); onEdit(project); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800"><PencilIcon className="h-5 w-5" /></button>
-                    <button aria-label={`Delete project ${project.name}`} onClick={(e) => { e.stopPropagation(); onDelete(project.id); }} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800"><TrashIcon className="h-5 w-5" /></button>
-                    <button aria-expanded={isExpanded} onClick={() => setIsExpanded(!isExpanded)} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
-                        <ChevronDownIcon className={`h-6 w-6 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+                <div className="flex items-center justify-end space-x-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                    <button onClick={(e) => { e.stopPropagation(); onEdit(project); }} className="text-slate-400 hover:text-indigo-400 p-2 hover:bg-white/5 rounded-lg transition-colors"><PencilIcon className="h-4 w-4" /></button>
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(project.id); }} className="text-slate-400 hover:text-red-400 p-2 hover:bg-white/5 rounded-lg transition-colors"><TrashIcon className="h-4 w-4" /></button>
+                    <button onClick={() => setIsExpanded(!isExpanded)} className={`text-slate-400 hover:text-white p-2 hover:bg-white/5 rounded-lg transition-all duration-300 ${isExpanded ? 'rotate-180 bg-white/5' : ''}`}>
+                        <ChevronDownIcon className="h-4 w-4" />
                     </button>
                 </div>
             </div>
-            {isExpanded && (
-                <div className="p-4 border-t border-gray-700/50 bg-gray-900/20 space-y-3">
-                    <h5 className="font-semibold text-gray-300">Subtasks</h5>
-                    {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => (
-                        <div key={st.id} className="flex flex-col sm:flex-row sm:items-center bg-gray-700 p-2.5 rounded-md group">
-                           <div className="flex-1 mb-2 sm:mb-0">
-                               <p className={`text-sm font-medium ${st.status === SubtaskStatus.Completed ? 'line-through text-gray-500' : 'text-white'}`}>{st.name}</p>
-                               <div className="flex items-center space-x-4 text-xs text-gray-400 mt-1">
-                                  <span className={`px-2 py-0.5 rounded-full text-white ${getSubtaskStatusColor(st.status)}`}>{st.status}</span>
-                                  {st.assigned_to && <span>To: {st.assigned_to}</span>}
-                                  {st.deadline && <span>Due: {st.deadline}</span>}
-                               </div>
-                           </div>
-                           <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button aria-label={`Move subtask ${st.name} up`} onClick={() => handleMoveSubtask(st.id, 'up')} disabled={index === 0} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowUpIcon className="h-4 w-4" /></button>
-                                <button aria-label={`Move subtask ${st.name} down`} onClick={() => handleMoveSubtask(st.id, 'down')} disabled={index === project.subtasks.length - 1} className="text-gray-400 hover:text-white disabled:opacity-30 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><ArrowDownIcon className="h-4 w-4" /></button>
-                                <button aria-label={`Edit subtask ${st.name}`} onClick={() => { setEditingSubtask(st); setIsSubtaskModalOpen(true); }} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-4 w-4" /></button>
-                                <button aria-label={`Delete subtask ${st.name}`} onClick={() => handleDeleteSubtask(st.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-4 w-4" /></button>
-                           </div>
+            
+            <div className={`grid transition-[grid-template-rows] duration-300 ease-in-out ${isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'}`}>
+                <div className="overflow-hidden">
+                    <div className="px-5 pb-5 pt-2 bg-black/20 border-t border-white/5 space-y-3 inset-shadow-y">
+                        <div className="flex items-center justify-between mb-2">
+                            <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subtasks & Milestones</h5>
+                            <button onClick={() => { setEditingSubtask(null); setIsSubtaskModalOpen(true);}} className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center px-2 py-1 rounded hover:bg-indigo-500/10 transition-colors">
+                                <PlusIcon className="h-3 w-3 mr-1" /> Add Subtask
+                            </button>
                         </div>
-                    ))}
-                     {project.subtasks.length === 0 && <p className="text-gray-500 italic text-sm">No subtasks yet.</p>}
-                    <button onClick={() => { setEditingSubtask(null); setIsSubtaskModalOpen(true);}} className="text-indigo-400 text-sm hover:text-indigo-300 pt-2 font-medium focus:outline-none focus-visible:underline">
-                        + Add Subtask
-                    </button>
+                        
+                        <div className="grid gap-2">
+                        {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => (
+                            <div key={st.id} className="flex items-center justify-between bg-slate-800/40 p-3 rounded-lg border border-white/5 hover:border-white/10 transition-all group/subtask">
+                               <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                   <span className={`w-2 h-2 rounded-full ${st.status === SubtaskStatus.Completed ? 'bg-emerald-500/50' : st.status === SubtaskStatus.InProgress ? 'bg-blue-500/50' : 'bg-slate-600'}`}></span>
+                                   <div className="flex flex-col min-w-0">
+                                       <p className={`text-sm font-medium truncate ${st.status === SubtaskStatus.Completed ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-200'}`}>{st.name}</p>
+                                       <div className="flex items-center space-x-2 text-[10px] text-slate-500 mt-0.5">
+                                          {st.assigned_to && <span>@{st.assigned_to}</span>}
+                                          {st.deadline && <span>Due {st.deadline}</span>}
+                                       </div>
+                                   </div>
+                               </div>
+                               
+                               <div className="flex items-center space-x-2">
+                                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getSubtaskStatusColor(st.status)}`}>{st.status}</span>
+                                    <div className="flex items-center space-x-1 opacity-0 group-hover/subtask:opacity-100 transition-opacity px-2 border-l border-white/5 ml-2">
+                                        <button onClick={() => handleMoveSubtask(st.id, 'up')} disabled={index === 0} className="text-slate-500 hover:text-white disabled:opacity-20 p-1"><ArrowUpIcon className="h-3 w-3" /></button>
+                                        <button onClick={() => handleMoveSubtask(st.id, 'down')} disabled={index === project.subtasks.length - 1} className="text-slate-500 hover:text-white disabled:opacity-20 p-1"><ArrowDownIcon className="h-3 w-3" /></button>
+                                        <button onClick={() => { setEditingSubtask(st); setIsSubtaskModalOpen(true); }} className="text-slate-500 hover:text-indigo-400 p-1"><PencilIcon className="h-3 w-3" /></button>
+                                        <button onClick={() => handleDeleteSubtask(st.id)} className="text-slate-500 hover:text-red-400 p-1"><TrashIcon className="h-3 w-3" /></button>
+                                    </div>
+                               </div>
+                            </div>
+                        ))}
+                        </div>
+                        
+                         {project.subtasks.length === 0 && (
+                             <div className="text-center py-4 border-2 border-dashed border-white/5 rounded-lg">
+                                 <p className="text-slate-500 text-sm">No subtasks defined yet.</p>
+                             </div>
+                         )}
+                    </div>
                 </div>
-            )}
+            </div>
             <Modal isOpen={isSubtaskModalOpen} onClose={() => setIsSubtaskModalOpen(false)} title={editingSubtask ? 'Edit Subtask' : 'Add Subtask'}>
                 <SubtaskForm subtask={editingSubtask} onSave={handleSaveSubtask} onCancel={() => setIsSubtaskModalOpen(false)} />
             </Modal>
@@ -374,7 +403,6 @@ const ProjectsView: React.FC = () => {
         if (isEditing) {
             const { error } = await supabase.from('projects').update(projectPayload).eq('id', editingProject.id);
             if (error) {
-                console.error('Error updating project:', error);
                 addToast('Error updating project', 'error');
             } else {
                 addToast('Project updated successfully', 'success');
@@ -382,7 +410,6 @@ const ProjectsView: React.FC = () => {
         } else {
             const { data, error } = await supabase.from('projects').insert(projectPayload).select().single();
             if (error) {
-                 console.error('Error creating project:', error);
                  addToast('Error creating project', 'error');
             } else if (data) {
                 addToast('Project created successfully', 'success');
@@ -390,7 +417,6 @@ const ProjectsView: React.FC = () => {
                     const subtasksToInsert = newSubtasks.map((st, index) => ({...st, project_id: data.id, position: index}));
                     const { error: subtaskError } = await supabase.from('subtasks').insert(subtasksToInsert);
                     if (subtaskError) {
-                        console.error('Error adding subtasks:', subtaskError);
                         addToast('Project saved, but failed to add subtasks', 'error');
                     }
                 }
@@ -403,10 +429,9 @@ const ProjectsView: React.FC = () => {
     };
 
     const handleDeleteProject = async (id: string) => {
-        if (window.confirm('Are you sure you want to delete this project and all its subtasks?')) {
+        if (window.confirm('Are you sure you want to delete this project?')) {
             const { error } = await supabase.from('projects').delete().eq('id', id);
             if (error) {
-                console.error('Error deleting project:', error);
                 addToast('Error deleting project', 'error');
             } else {
                 addToast('Project deleted', 'success');
@@ -438,39 +463,48 @@ const ProjectsView: React.FC = () => {
     };
 
 
-    if (loading) return <div className="text-center p-8">Loading projects...</div>;
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+    );
 
     const noProjectsExist = projects.length === 0;
 
     return (
-        <div className="space-y-6">
-            <div className="flex space-x-2">
-                 <button onClick={handleOpenManualAdd} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-indigo-500">
+        <div className="space-y-8">
+            <div className="flex flex-wrap gap-4">
+                 <button onClick={handleOpenManualAdd} className="primary-gradient px-5 py-2.5 rounded-xl text-sm font-medium flex items-center transition-transform hover:-translate-y-0.5 active:scale-95">
                     <PlusIcon className="h-5 w-5 mr-2" />
-                    Add New Project
+                    New Project
                 </button>
-                 <button onClick={() => setIsAIModalOpen(true)} className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-indigo-300 bg-indigo-500/20 hover:bg-indigo-500/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-gray-900 focus-visible:ring-indigo-500">
-                    <SparklesIcon className="h-5 w-5 mr-2" />
-                    Add with AI
+                 <button onClick={() => setIsAIModalOpen(true)} className="glass-button px-5 py-2.5 rounded-xl text-sm font-medium text-indigo-300 flex items-center border-indigo-500/20 hover:bg-indigo-500/10">
+                    <SparklesIcon className="h-5 w-5 mr-2 text-indigo-400" />
+                    Generate with AI
                 </button>
             </div>
 
             {noProjectsExist ? (
-                 <div className="text-center py-16 px-4 bg-gray-800 rounded-lg border-2 border-dashed border-gray-700">
-                    <BriefcaseIcon className="mx-auto h-12 w-12 text-gray-500" />
-                    <h3 className="mt-2 text-xl font-medium text-white">No projects yet</h3>
-                    <p className="mt-1 text-sm text-gray-400">Get started by adding your first client project.</p>
+                 <div className="flex flex-col items-center justify-center py-20 glass-panel rounded-2xl border-dashed border-2 border-white/10">
+                    <div className="bg-slate-800 p-4 rounded-full mb-4">
+                        <BriefcaseIcon className="h-10 w-10 text-slate-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-white">No projects yet</h3>
+                    <p className="mt-2 text-slate-400">Kickstart your workflow by adding your first client project.</p>
                  </div>
             ) : (
-                <div className="space-y-8">
+                <div className="space-y-10">
                     {PROJECT_CATEGORIES.map(category => {
                         const categoryProjects = projects.filter(p => p.category === category);
                         if (categoryProjects.length === 0) return null;
                         return (
-                            <div key={category}>
-                                <h3 className="text-xl font-bold mb-4 text-white border-b-2 border-gray-700 pb-2">{category}</h3>
-                                <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-                                    <div className="hidden lg:grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-4 px-4 py-3 bg-gray-900/30 text-sm font-semibold text-gray-400">
+                            <div key={category} className="animate-fade-in-up">
+                                <div className="flex items-center space-x-3 mb-4 px-1">
+                                    <h3 className="text-lg font-bold text-white">{category}</h3>
+                                    <span className="bg-white/10 text-slate-300 text-xs px-2 py-0.5 rounded-full font-mono">{categoryProjects.length}</span>
+                                </div>
+                                <div className="glass-panel rounded-2xl overflow-hidden">
+                                    <div className="hidden lg:grid grid-cols-[minmax(0,3fr)_minmax(0,2fr)_minmax(0,1.5fr)_minmax(0,2fr)_minmax(0,1.5fr)_auto] items-center gap-x-6 px-6 py-3 bg-white/5 border-b border-white/5 text-xs font-bold text-slate-400 uppercase tracking-wider">
                                         <div className="text-left">Project</div>
                                         <div className="text-left">Client</div>
                                         <div className="text-left">Deadline</div>
@@ -478,7 +512,7 @@ const ProjectsView: React.FC = () => {
                                         <div className="text-left">Status</div>
                                         <div className="text-right">Actions</div>
                                     </div>
-                                    <div className="divide-y divide-gray-700/50">
+                                    <div>
                                         {categoryProjects.map(project => (
                                             <ProjectRow key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtasksReordered={fetchProjects} />
                                         ))}

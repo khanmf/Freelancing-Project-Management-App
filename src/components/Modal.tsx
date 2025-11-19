@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef } from 'react';
 
 interface ModalProps {
@@ -42,7 +43,6 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
 
     document.addEventListener('keydown', handleKeyDown);
 
-    // Focus the first element when the modal opens
     const firstFocusable = modalRef.current?.querySelector<HTMLElement>(
         'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
     );
@@ -57,7 +57,7 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center"
+      className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[100] flex justify-center items-center p-4"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -65,24 +65,23 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children }) => {
     >
       <div
         ref={modalRef}
-        className="bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6 border border-gray-700 animate-fade-in-up"
+        className="glass-panel rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-fade-in-up border border-white/10 bg-slate-900"
         onClick={(e) => e.stopPropagation()}
       >
         {title && (
-          <div className="mb-4">
-            <h2 id="modal-title" className="text-xl font-bold text-white">{title}</h2>
-            <hr className="border-gray-700 mt-2" />
+          <div className="px-6 py-5 border-b border-white/5 bg-white/[0.02]">
+            <h2 id="modal-title" className="text-xl font-bold text-white tracking-tight">{title}</h2>
           </div>
         )}
-        <div>{children}</div>
+        <div className="p-6">{children}</div>
       </div>
       <style>{`
         @keyframes fade-in-up {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
+          from { opacity: 0; transform: scale(0.95) translateY(10px); }
+          to { opacity: 1; transform: scale(1) translateY(0); }
         }
         .animate-fade-in-up {
-          animation: fade-in-up 0.3s ease-out forwards;
+          animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
     </div>

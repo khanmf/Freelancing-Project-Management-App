@@ -1,44 +1,92 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-  /* For smooth transitions on colors, borders, and transforms */
+  body {
+    @apply bg-slate-950 text-slate-200;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.15) 0%, transparent 50%),
+      radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 15% 70%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  /* Smooth transitions */
   button, a, input, select, textarea {
-    transition: all 0.2s ease-in-out;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
   
-  /* Custom focus-visible state for better accessibility */
-  .focus-visible\:ring-indigo-500:focus-visible {
-    --tw-ring-color: #6366f1;
+  /* Custom focus ring */
+  *:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5), 0 0 0 4px rgba(99, 102, 241, 0.1);
   }
 }
 
-/* Animations for Toast Notifications */
+@layer components {
+  .glass-panel {
+    @apply bg-slate-900/60 backdrop-blur-md border border-white/5 shadow-xl;
+  }
+  
+  .glass-button {
+    @apply bg-white/5 hover:bg-white/10 border border-white/5 text-white backdrop-blur-sm transition-all;
+  }
+  
+  .primary-gradient {
+    @apply bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-lg shadow-indigo-500/20;
+  }
+  
+  .input-field {
+    @apply bg-slate-800/50 border border-white/10 rounded-lg py-2.5 px-4 text-white placeholder-slate-500 focus:bg-slate-800 focus:border-indigo-500/50 focus:ring-0 transition-colors;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Toast Animations */
 @keyframes toast-in-right {
   from {
-    transform: translateX(100%);
+    transform: translateX(100%) scale(0.9);
     opacity: 0;
   }
   to {
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
     opacity: 1;
   }
 }
 .animate-toast-in-right {
-  animation: toast-in-right 0.5s ease-out forwards;
+  animation: toast-in-right 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 @keyframes toast-out-right {
   from {
-    transform: translateX(0);
+    transform: translateX(0) scale(1);
     opacity: 1;
   }
   to {
-    transform: translateX(100%);
+    transform: translateX(100%) scale(0.9);
     opacity: 0;
   }
 }
 .animate-toast-out-right {
-  animation: toast-out-right 0.5s ease-in forwards;
+  animation: toast-out-right 0.3s ease-in forwards;
 }

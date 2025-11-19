@@ -1,3 +1,4 @@
+
 import { SkillCategory, ProjectStatus, SkillStatus, ProjectCategory, SubtaskStatus } from './types';
 
 export const SKILL_CATEGORIES: SkillCategory[] = [
@@ -37,17 +38,17 @@ export const SKILL_STATUSES: SkillStatus[] = [
   SkillStatus.Mastered,
 ];
 
-export const CATEGORY_COLORS: Record<ProjectCategory, { border: string; bg: string; text: string; }> = {
-  [ProjectCategory.AppDev]: { border: 'border-blue-400', bg: 'bg-blue-500/20', text: 'text-blue-300' },
-  [ProjectCategory.AI]: { border: 'border-purple-400', bg: 'bg-purple-500/20', text: 'text-purple-300' },
-  [ProjectCategory.Academic]: { border: 'border-amber-400', bg: 'bg-amber-500/20', text: 'text-amber-300' },
-  [ProjectCategory.Marketing]: { border: 'border-pink-400', bg: 'bg-pink-500/20', text: 'text-pink-300' },
-  [ProjectCategory.Chem]: { border: 'border-teal-400', bg: 'bg-teal-500/20', text: 'text-teal-300' },
-  [ProjectCategory.Others]: { border: 'border-gray-400', bg: 'bg-gray-500/20', text: 'text-gray-300' },
+export const CATEGORY_COLORS: Record<ProjectCategory, { border: string; bg: string; text: string; ring: string }> = {
+  [ProjectCategory.AppDev]: { border: 'border-blue-500/30', bg: 'bg-blue-500/10', text: 'text-blue-400', ring: 'ring-blue-500/20' },
+  [ProjectCategory.AI]: { border: 'border-purple-500/30', bg: 'bg-purple-500/10', text: 'text-purple-400', ring: 'ring-purple-500/20' },
+  [ProjectCategory.Academic]: { border: 'border-amber-500/30', bg: 'bg-amber-500/10', text: 'text-amber-400', ring: 'ring-amber-500/20' },
+  [ProjectCategory.Marketing]: { border: 'border-pink-500/30', bg: 'bg-pink-500/10', text: 'text-pink-400', ring: 'ring-pink-500/20' },
+  [ProjectCategory.Chem]: { border: 'border-teal-500/30', bg: 'bg-teal-500/10', text: 'text-teal-400', ring: 'ring-teal-500/20' },
+  [ProjectCategory.Others]: { border: 'border-slate-500/30', bg: 'bg-slate-500/10', text: 'text-slate-400', ring: 'ring-slate-500/20' },
 };
 
-export const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string; }> = {
-  [ProjectStatus.Todo]: { bg: 'bg-yellow-500/20', text: 'text-yellow-300' },
-  [ProjectStatus.InProgress]: { bg: 'bg-blue-500/20', text: 'text-blue-300' },
-  [ProjectStatus.Done]: { bg: 'bg-green-500/20', text: 'text-green-300' },
+export const STATUS_COLORS: Record<ProjectStatus, { bg: string; text: string; ring: string }> = {
+  [ProjectStatus.Todo]: { bg: 'bg-yellow-500/10', text: 'text-yellow-400', ring: 'ring-yellow-500/20' },
+  [ProjectStatus.InProgress]: { bg: 'bg-blue-500/10', text: 'text-blue-400', ring: 'ring-blue-500/20' },
+  [ProjectStatus.Done]: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', ring: 'ring-emerald-500/20' },
 };

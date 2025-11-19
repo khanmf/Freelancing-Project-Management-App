@@ -1,13 +1,12 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-// FIX: Remove LiveSession from import as it's no longer exported.
 import { GoogleGenAI, LiveServerMessage, Modality, Type, Blob, FunctionDeclaration } from '@google/genai';
 import { supabase } from '../supabaseClient';
 import { PROJECT_CATEGORIES, SKILL_CATEGORIES, SKILL_STATUSES } from '../constants';
-// FIX: Import ProjectCategory to use as a default value.
 import { TransactionType, Database, ProjectStatus, SubtaskStatus } from '../types';
 import { MicrophoneIcon, XMarkIcon } from './icons/Icons';
 
-// --- Type aliases for Supabase operations ---
+// --- Type aliases ---
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 type SkillInsert = Database['public']['Tables']['skills']['Insert'];
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
@@ -58,9 +57,7 @@ function createBlob(data: Float32Array): Blob {
         mimeType: 'audio/pcm;rate=16000',
     };
 }
-// --- End Audio Utility Functions ---
 
-// FIX: Define a local LiveSession interface since it's not exported from the SDK.
 interface LiveSession {
     sendRealtimeInput(input: { media: Blob }): void;
     sendToolResponse(response: { functionResponses: any }): void;
@@ -68,7 +65,6 @@ interface LiveSession {
 }
 
 
-// --- Gemini Function Declarations ---
 const functionDeclarations: FunctionDeclaration[] = [
     {
         name: 'addProject',
@@ -117,13 +113,13 @@ const functionDeclarations: FunctionDeclaration[] = [
         },
     },
 ];
-// --- End Gemini Function Declarations ---
 
 const VoiceAssistant: React.FC = () => {
     const [isAssistantOpen, setIsAssistantOpen] = useState(false);
     const [isListening, setIsListening] = useState(false);
-    const [statusMessage, setStatusMessage] = useState('Click the mic to start');
+    const [statusMessage, setStatusMessage] = useState('Click microphone to start');
     const [conversation, setConversation] = useState<{ speaker: 'user' | 'model' | 'system', text: string }[]>([]);
+    const scrollRef = useRef<HTMLDivElement>(null);
     
     const ai = useRef<GoogleGenAI | null>(null);
     const sessionPromise = useRef<Promise<LiveSession> | null>(null);
@@ -141,14 +137,16 @@ const VoiceAssistant: React.FC = () => {
         if (apiKey) {
             ai.current = new GoogleGenAI({ apiKey: apiKey });
         } else {
-            console.error("API_KEY environment variable not set.");
-            setStatusMessage("API Key not found.");
+            setStatusMessage("API Key missing");
         }
-
-        return () => {
-            stopListening(); // Cleanup on unmount
-        };
+        return () => { stopListening(); };
     }, []);
+    
+    useEffect(() => {
+        if (scrollRef.current) {
+            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        }
+    }, [conversation]);
 
     const addConversationTurn = (speaker: 'user' | 'model' | 'system', text: string) => {
         setConversation(prev => [...prev, { speaker, text }]);
@@ -157,24 +155,23 @@ const VoiceAssistant: React.FC = () => {
     const handleToolCall = async (fc: any, session: LiveSession) => {
         let result = 'An unknown error occurred.';
         try {
-            console.log('Executing tool call:', fc.name, fc.args);
-            addConversationTurn('system', `Executing: ${fc.name}(${JSON.stringify(fc.args)})`);
+            addConversationTurn('system', `⚡ Executing: ${fc.name}...`);
 
             switch (fc.name) {
                 case 'addProject':
                     const newProject: ProjectInsert = {...fc.args, status: ProjectStatus.Todo};
                     await supabase.from('projects').insert(newProject);
-                    result = `Successfully added project: ${fc.args.name}`;
+                    result = `Project "${fc.args.name}" added successfully.`;
                     break;
                 case 'addSkill':
                     const newSkill: SkillInsert = fc.args;
                     await supabase.from('skills').insert(newSkill);
-                    result = `Successfully added skill: ${fc.args.name}`;
+                    result = `Skill "${fc.args.name}" added successfully.`;
                     break;
                 case 'addTransaction':
                     const newTransaction: TransactionInsert = fc.args;
                     await supabase.from('transactions').insert(newTransaction);
-                    result = `Successfully logged transaction: ${fc.args.description}`;
+                    result = `Transaction "${fc.args.description}" logged.`;
                     break;
                 case 'addTodo':
                     const { data: projectData, error: projectError } = await supabase
@@ -184,25 +181,18 @@ const VoiceAssistant: React.FC = () => {
                         .single();
 
                     if (projectError || !projectData) {
-                        console.error("Project not found:", fc.args.project_name, projectError);
-                        result = `Could not find a project named "${fc.args.project_name}". Please try again.`;
+                        result = `Could not find project "${fc.args.project_name}".`;
                         break;
                     }
                     
                     const projectId = projectData.id;
 
-                    const { data: subtasks, error: subtasksError } = await supabase
+                    const { data: subtasks } = await supabase
                         .from('subtasks')
                         .select('position')
                         .eq('project_id', projectId)
                         .order('position', { ascending: false })
                         .limit(1);
-
-                    if (subtasksError) {
-                        console.error("Error fetching subtasks for position:", subtasksError);
-                        result = `Error creating task: Could not determine task position.`;
-                        break;
-                    }
 
                     const lastSubtask = subtasks?.[0];
                     const newPosition = lastSubtask ? lastSubtask.position + 1 : 0;
@@ -214,22 +204,14 @@ const VoiceAssistant: React.FC = () => {
                         position: newPosition,
                     };
 
-                    const { error: insertError } = await supabase.from('subtasks').insert(newSubtask);
-
-                    if (insertError) {
-                        console.error("Error inserting subtask:", insertError);
-                        result = `Error saving task to project "${fc.args.project_name}".`;
-                        break;
-                    }
-                    
-                    result = `Successfully added task "${fc.args.text}" to project "${fc.args.project_name}".`;
+                    await supabase.from('subtasks').insert(newSubtask);
+                    result = `Task "${fc.args.text}" added to "${fc.args.project_name}".`;
                     break;
                 default:
-                    result = `Function ${fc.name} is not implemented.`;
+                    result = `Function ${fc.name} not found.`;
             }
         } catch (e: any) {
-            console.error("Error executing tool call:", e);
-            result = `Error executing ${fc.name}: ${e.message}`;
+            result = `Error: ${e.message}`;
         }
 
         addConversationTurn('system', result);
@@ -240,9 +222,9 @@ const VoiceAssistant: React.FC = () => {
         setIsListening(prev => {
             if (!prev && !streamRef.current) return prev;
             
-            setStatusMessage('Click the mic to start');
+            setStatusMessage('Click microphone to start');
             
-            sessionPromise.current?.then(session => session.close()).catch(e => console.error("Error closing session:", e));
+            sessionPromise.current?.then(session => session.close()).catch(e => console.error(e));
             sessionPromise.current = null;
 
             audioProcessorRef.current?.disconnect();
@@ -255,7 +237,7 @@ const VoiceAssistant: React.FC = () => {
             
             if (outputAudioContext.current) {
                 for (const source of sources.current.values()) {
-                    try { source.stop(); } catch (e) { /* ignore error */ }
+                    try { source.stop(); } catch (e) { }
                 }
                 sources.current.clear();
                 nextStartTime.current = 0;
@@ -267,17 +249,11 @@ const VoiceAssistant: React.FC = () => {
 
     const startListening = useCallback(async () => {
         if (isListening) return;
-
-        if (!ai.current) {
-            setStatusMessage("AI Client not initialized.");
-            addConversationTurn('system', 'Error: AI Client is not ready. Check API Key.');
-            return;
-        }
+        if (!ai.current) return;
 
         setIsListening(true);
-        setStatusMessage('Initializing session...');
+        setStatusMessage('Connecting...');
         setConversation([]);
-        addConversationTurn('system', 'Starting voice session...');
         
         let currentInputTranscription = '';
         let currentOutputTranscription = '';
@@ -288,37 +264,27 @@ const VoiceAssistant: React.FC = () => {
             
             if (inputAudioContext.current.state === 'suspended') await inputAudioContext.current.resume();
             if (outputAudioContext.current.state === 'suspended') await outputAudioContext.current.resume();
-        } catch (e: any) {
-            console.error("Error with AudioContext:", e);
-            setStatusMessage("Audio system error.");
-            addConversationTurn('system', `Error: Could not initialize audio system. ${e.message}`);
+        } catch (e) {
+            setStatusMessage("Audio Error");
             setIsListening(false);
             return;
         }
 
         try {
-            setStatusMessage('Accessing microphone...');
             streamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
-            setStatusMessage('Microphone connected.');
-        } catch (err: any) {
-            console.error("Error getting microphone access:", err);
-            setStatusMessage("Microphone access denied.");
-            addConversationTurn('system', "Error: Could not access microphone. Please check browser permissions.");
+        } catch (err) {
+            setStatusMessage("Microphone blocked");
             setIsListening(false);
             return;
         }
 
-        setStatusMessage('Connecting to assistant...');
         sessionPromise.current = ai.current.live.connect({
             model: 'gemini-2.5-flash-native-audio-preview-09-2025',
             callbacks: {
                 onopen: () => {
-                    setStatusMessage('Listening... Speak now.');
-                    if (!inputAudioContext.current || !streamRef.current) {
-                        console.error("Audio context or stream is missing in onopen.");
-                        stopListening();
-                        return;
-                    }
+                    setStatusMessage('Listening...');
+                    if (!inputAudioContext.current || !streamRef.current) return;
+                    
                     mediaStreamSource.current = inputAudioContext.current.createMediaStreamSource(streamRef.current);
                     const scriptProcessor = inputAudioContext.current.createScriptProcessor(4096, 1, 1);
                     audioProcessorRef.current = scriptProcessor;
@@ -384,14 +350,11 @@ const VoiceAssistant: React.FC = () => {
                         sources.current.add(source);
                     }
                 },
-                onerror: (e: ErrorEvent) => {
-                    console.error('Session error:', e);
-                    setStatusMessage('Session Error.');
-                    addConversationTurn('system', `Error: ${e.message}`);
+                onerror: (e) => {
+                    setStatusMessage('Connection Error');
                     stopListening();
                 },
-                onclose: (e: CloseEvent) => {
-                    console.debug('Session closed.');
+                onclose: (e) => {
                     stopListening();
                 },
             },
@@ -399,24 +362,14 @@ const VoiceAssistant: React.FC = () => {
                 responseModalities: [Modality.AUDIO],
                 outputAudioTranscription: {},
                 tools: [{ functionDeclarations }],
-                systemInstruction: "You are a helpful assistant for a freelancer's dashboard. Your goal is to help the user manage their projects, skills, finances, and tasks. Be concise and clear. When a date is mentioned like 'next Friday' or 'end of the month', convert it to a YYYY-MM-DD format based on the current date. Today's date is " + new Date().toLocaleDateString('en-CA') + ".",
+                systemInstruction: "You are an intelligent freelance dashboard assistant. Be brief, professional, and helpful. Today is " + new Date().toLocaleDateString('en-CA') + ".",
             },
-        });
-        
-        sessionPromise.current.catch(err => {
-            console.error("Failed to connect to Gemini Live session:", err);
-            setStatusMessage("Connection failed.");
-            addConversationTurn('system', `Error: Could not connect to the voice assistant. ${err.message}`);
-            stopListening();
         });
     }, [isListening, stopListening]);
 
     const toggleListening = () => {
-        if (isListening) {
-            stopListening();
-        } else {
-            startListening();
-        }
+        if (isListening) stopListening();
+        else startListening();
     };
     
     const handleCloseModal = () => {
@@ -428,37 +381,55 @@ const VoiceAssistant: React.FC = () => {
         <>
             <button
                 onClick={() => setIsAssistantOpen(true)}
-                className="fixed bottom-6 right-6 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-4 shadow-lg transition-transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-indigo-500 z-50"
+                className="fixed bottom-8 right-8 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-full p-4 shadow-[0_0_20px_rgba(99,102,241,0.5)] transition-all hover:scale-105 focus:outline-none z-50 border border-white/10"
                 aria-label="Open Voice Assistant"
             >
-                <MicrophoneIcon className="h-8 w-8" />
+                <MicrophoneIcon className="h-7 w-7" />
             </button>
+            
             {isAssistantOpen && (
-                 <div className="fixed inset-0 bg-black bg-opacity-70 z-50 flex justify-center items-center" onClick={handleCloseModal}>
-                    <div className="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl h-[80vh] flex flex-col border border-gray-700 p-4" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex justify-between items-center border-b border-gray-700 pb-3 mb-3">
-                            <h2 className="text-xl font-bold text-white">Voice Assistant</h2>
-                            <button onClick={handleCloseModal} className="text-gray-400 hover:text-white"><XMarkIcon className="h-6 w-6"/></button>
+                 <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex justify-center items-center" onClick={handleCloseModal}>
+                    <div className="bg-slate-900 border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl h-[70vh] flex flex-col overflow-hidden animate-fade-in-up" onClick={(e) => e.stopPropagation()}>
+                        
+                        <div className="p-5 border-b border-white/5 flex justify-between items-center bg-gradient-to-r from-indigo-900/20 to-purple-900/20">
+                            <div className="flex items-center space-x-3">
+                                <div className={`h-2 w-2 rounded-full ${isListening ? 'bg-green-400 animate-pulse' : 'bg-red-400'}`}></div>
+                                <h2 className="text-lg font-bold text-white tracking-tight">Gemini Voice Assistant</h2>
+                            </div>
+                            <button onClick={handleCloseModal} className="text-slate-400 hover:text-white transition-colors"><XMarkIcon className="h-5 w-5"/></button>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-950/50">
+                            {conversation.length === 0 && (
+                                <div className="h-full flex flex-col items-center justify-center text-slate-500 space-y-4 opacity-60">
+                                    <MicrophoneIcon className="h-12 w-12" />
+                                    <p>Say "Add a task" or "Log an expense"</p>
+                                </div>
+                            )}
                             {conversation.map((turn, index) => (
-                                <div key={index} className={`flex flex-col ${turn.speaker === 'user' ? 'items-end' : 'items-start'}`}>
-                                    <div className={`max-w-[80%] rounded-lg px-3 py-2 ${
-                                        turn.speaker === 'user' ? 'bg-indigo-600 text-white' :
-                                        turn.speaker === 'model' ? 'bg-gray-700 text-gray-200' :
-                                        'bg-gray-900 text-yellow-400 text-xs italic'
+                                <div key={index} className={`flex flex-col ${turn.speaker === 'user' ? 'items-end' : turn.speaker === 'model' ? 'items-start' : 'items-center'}`}>
+                                    <div className={`max-w-[80%] rounded-2xl px-4 py-3 shadow-md ${
+                                        turn.speaker === 'user' ? 'bg-indigo-600 text-white rounded-br-none' :
+                                        turn.speaker === 'model' ? 'bg-slate-800 text-slate-200 rounded-bl-none border border-white/5' :
+                                        'bg-transparent text-indigo-300 text-xs py-1 shadow-none'
                                     }`}>
-                                        <p className="text-sm whitespace-pre-wrap">{turn.text}</p>
+                                        <p className="text-sm leading-relaxed">{turn.text}</p>
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        <div className="border-t border-gray-700 pt-4 flex flex-col items-center">
-                             <p className="text-sm text-gray-400 mb-4 h-5">{statusMessage}</p>
-                            <button onClick={toggleListening} className={`p-4 rounded-full transition-colors ${isListening ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                                <MicrophoneIcon className="h-8 w-8 text-white"/>
+                        <div className="p-6 border-t border-white/5 bg-slate-900 flex flex-col items-center justify-center space-y-4">
+                            <p className={`text-xs font-medium uppercase tracking-widest ${isListening ? 'text-indigo-400' : 'text-slate-500'}`}>{statusMessage}</p>
+                            <button 
+                                onClick={toggleListening} 
+                                className={`p-5 rounded-full transition-all duration-300 shadow-lg ${
+                                    isListening 
+                                    ? 'bg-red-500/20 text-red-400 border border-red-500/50 shadow-[0_0_30px_rgba(239,68,68,0.3)] hover:bg-red-500/30' 
+                                    : 'bg-indigo-600 text-white border border-indigo-400 shadow-[0_0_30px_rgba(99,102,241,0.4)] hover:scale-105'
+                                }`}
+                            >
+                                <MicrophoneIcon className="h-8 w-8" />
                             </button>
                         </div>
                     </div>

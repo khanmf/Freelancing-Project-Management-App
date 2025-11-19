@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { Skill, SkillCategory, SkillStatus, Skills, Database } from '../types';
 import { supabase } from '../supabaseClient';
@@ -20,32 +21,30 @@ const SkillForm: React.FC<{
     status: skill?.status as SkillStatus || SkillStatus.Learning,
   });
   
-  const formInputClasses = "mt-1 block w-full bg-gray-700 border border-gray-600 rounded-md shadow-sm py-2 px-3 text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800";
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSave(formData);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       <div>
-        <label className="block text-sm font-medium text-gray-300">Skill / Task Name</label>
-        <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className={formInputClasses} required />
+        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Skill Name</label>
+        <input type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="input-field w-full" required />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300">Target Date</label>
-        <input type="date" value={formData.deadline} onChange={(e) => setFormData({ ...formData, deadline: e.target.value })} className={formInputClasses} required />
+        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Target Date</label>
+        <input type="date" value={formData.deadline} onChange={(e) => setFormData({ ...formData, deadline: e.target.value })} className="input-field w-full" required />
       </div>
       <div>
-        <label className="block text-sm font-medium text-gray-300">Status</label>
-        <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as SkillStatus })} className={formInputClasses}>
+        <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Status</label>
+        <select value={formData.status} onChange={(e) => setFormData({ ...formData, status: e.target.value as SkillStatus })} className="input-field w-full">
           {SKILL_STATUSES.map(status => <option key={status} value={status}>{status}</option>)}
         </select>
       </div>
-      <div className="flex justify-end space-x-2 pt-4">
-        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-gray-300 bg-gray-600 rounded-md hover:bg-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Cancel</button>
-        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">Save Skill</button>
+      <div className="flex justify-end space-x-3 pt-4 border-t border-white/5">
+        <button type="button" onClick={onCancel} className="px-4 py-2 text-sm font-medium text-slate-300 bg-white/5 rounded-lg hover:bg-white/10 transition-colors">Cancel</button>
+        <button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-500 shadow-lg shadow-indigo-500/20 transition-all">Save Skill</button>
       </div>
     </form>
   );
@@ -61,47 +60,57 @@ const SkillCategoryAccordion: React.FC<{
 }> = ({ category, skills, onAdd, onEdit, onDelete }) => {
   const [isOpen, setIsOpen] = useState(true);
 
-  const getStatusColor = (status: string) => {
+  const getStatusStyles = (status: string) => {
     switch(status) {
-      case SkillStatus.Learning: return 'border-l-4 border-blue-500';
-      case SkillStatus.Practicing: return 'border-l-4 border-yellow-500';
-      case SkillStatus.Mastered: return 'border-l-4 border-green-500';
+      case SkillStatus.Learning: return 'bg-blue-500/10 text-blue-300 border-blue-500/20';
+      case SkillStatus.Practicing: return 'bg-amber-500/10 text-amber-300 border-amber-500/20';
+      case SkillStatus.Mastered: return 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20';
+      default: return 'bg-slate-700/30 text-slate-400 border-slate-600';
     }
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 transition-shadow hover:shadow-lg hover:border-gray-600">
-      <button aria-expanded={isOpen} onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-4 text-left rounded-t-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
-        <h3 className="font-bold text-lg text-white">{category}</h3>
-        <ChevronDownIcon className={`h-6 w-6 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+    <div className="glass-panel rounded-2xl overflow-hidden transition-all hover:border-white/10 hover:shadow-2xl group/accordion">
+      <button onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-5 text-left bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+        <div className="flex items-center space-x-3">
+            <h3 className="font-bold text-lg text-white tracking-tight">{category}</h3>
+            <span className="bg-white/10 text-slate-400 text-xs px-2 py-0.5 rounded-full font-mono">{skills.length}</span>
+        </div>
+        <ChevronDownIcon className={`h-5 w-5 text-slate-400 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
-      {isOpen && (
-        <div className="p-4 border-t border-gray-700">
-          <button onClick={() => onAdd(category)} className="mb-4 inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-800">
+      
+      <div className={`transition-[max-height] duration-500 ease-in-out overflow-hidden ${isOpen ? 'max-h-[500px]' : 'max-h-0'}`}>
+        <div className="p-5 border-t border-white/5 bg-slate-900/30">
+          <button onClick={() => onAdd(category)} className="w-full py-2.5 mb-4 border-2 border-dashed border-white/10 rounded-xl text-sm font-medium text-slate-400 hover:text-white hover:border-indigo-500/50 hover:bg-indigo-500/5 transition-all flex items-center justify-center">
             <PlusIcon className="h-4 w-4 mr-2" />
-            Add Skill
+            Add New Skill
           </button>
-          <div className="space-y-3">
+          
+          <div className="space-y-3 max-h-64 overflow-y-auto pr-1 custom-scrollbar">
             {skills.length > 0 ? skills.map(skill => (
-              <div key={skill.id} className={`flex justify-between items-center bg-gray-700 p-3 rounded ${getStatusColor(skill.status)}`}>
+              <div key={skill.id} className="flex justify-between items-center bg-white/5 p-3.5 rounded-xl border border-white/5 hover:border-white/10 hover:bg-white/10 transition-all group/item">
                 <div>
-                  <p className="font-semibold text-white">{skill.name}</p>
-                  <p className="text-sm text-gray-400">Target: {skill.deadline} - <span className="font-medium">{skill.status}</span></p>
+                  <p className="font-semibold text-slate-100 text-sm">{skill.name}</p>
+                  <div className="flex items-center space-x-2 mt-1.5">
+                      <span className={`text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded border ${getStatusStyles(skill.status)}`}>
+                          {skill.status}
+                      </span>
+                      <span className="text-xs text-slate-500 font-medium">Target: {skill.deadline}</span>
+                  </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button aria-label={`Edit skill ${skill.name}`} onClick={() => onEdit(category, skill)} className="text-gray-400 hover:text-white p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><PencilIcon className="h-5 w-5" /></button>
-                  <button aria-label={`Delete skill ${skill.name}`} onClick={() => onDelete(skill.id)} className="text-gray-400 hover:text-red-500 p-1 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-gray-700"><TrashIcon className="h-5 w-5" /></button>
+                <div className="flex space-x-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
+                  <button onClick={() => onEdit(category, skill)} className="text-slate-500 hover:text-indigo-400 p-1.5 hover:bg-white/10 rounded-lg transition-colors"><PencilIcon className="h-4 w-4" /></button>
+                  <button onClick={() => onDelete(skill.id)} className="text-slate-500 hover:text-red-400 p-1.5 hover:bg-white/10 rounded-lg transition-colors"><TrashIcon className="h-4 w-4" /></button>
                 </div>
               </div>
             )) : (
-              <div className="text-center py-6">
-                <CodeIcon className="mx-auto h-8 w-8 text-gray-500" />
-                <p className="mt-2 text-sm text-gray-500">No skills added here yet.</p>
+              <div className="text-center py-8">
+                <p className="text-sm text-slate-500 italic">No active skills.</p>
               </div>
             )}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
@@ -115,13 +124,9 @@ const SkillsView: React.FC = () => {
     const { addToast } = useToast();
 
     const fetchSkills = useCallback(async () => {
-        const { data, error } = await supabase
-            .from('skills')
-            .select('*')
-            .order('created_at', { ascending: true });
+        const { data, error } = await supabase.from('skills').select('*').order('created_at', { ascending: true });
 
         if (error) {
-            console.error('Error fetching skills:', error);
             addToast('Error fetching skills', 'error');
         } else {
             const groupedSkills = (data || []).reduce((acc, skill) => {
@@ -162,10 +167,9 @@ const SkillsView: React.FC = () => {
     };
 
     const handleDeleteSkill = async (id: string) => {
-        if(window.confirm('Are you sure you want to delete this skill?')) {
+        if(window.confirm('Delete this skill?')) {
             const { error } = await supabase.from('skills').delete().eq('id', id);
             if (error) {
-                console.error("Error deleting skill:", error);
                 addToast('Error deleting skill', 'error');
             } else {
                 addToast('Skill deleted', 'success');
@@ -176,20 +180,18 @@ const SkillsView: React.FC = () => {
     const handleSaveSkill = async (skillData: Omit<SkillInsert, 'category'>) => {
         if (editingSkill) {
             const { category, skill } = editingSkill;
-            if (skill) { // Editing existing
+            if (skill) {
                 const skillUpdate: SkillUpdate = skillData;
                 const { error } = await supabase.from('skills').update(skillUpdate).eq('id', skill.id);
                 if(error) {
-                    console.error("Error updating skill:", error);
                     addToast('Error updating skill', 'error');
                 } else {
                     addToast('Skill updated', 'success');
                 }
-            } else { // Adding new
+            } else {
                 const skillInsert: SkillInsert = { ...skillData, category };
                 const { error } = await supabase.from('skills').insert(skillInsert);
                 if(error) {
-                    console.error("Error adding skill:", error);
                     addToast('Error adding skill', 'error');
                 } else {
                     addToast('Skill added', 'success');
@@ -200,11 +202,15 @@ const SkillsView: React.FC = () => {
         setEditingSkill(null);
     };
 
-    if (loading) return <div className="text-center p-8">Loading skills...</div>;
+    if (loading) return (
+        <div className="flex items-center justify-center h-64">
+            <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+    );
 
     return (
-        <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {SKILL_CATEGORIES.map(category => (
                     <SkillCategoryAccordion 
                         key={category} 
@@ -219,7 +225,7 @@ const SkillsView: React.FC = () => {
             <Modal 
                 isOpen={isModalOpen} 
                 onClose={() => setIsModalOpen(false)} 
-                title={editingSkill?.skill ? `Edit Skill in ${editingSkill.category}` : `Add Skill to ${editingSkill?.category}`}
+                title={editingSkill?.skill ? `Edit Skill` : `Add Skill`}
             >
                 {editingSkill && (
                     <SkillForm 
