@@ -4,7 +4,7 @@ import { Transaction, TransactionType, Database } from '../types';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
 import Modal from './Modal';
-import { PlusIcon, PencilIcon, TrashIcon, TrendingUpIcon, TrendingDownIcon, ScaleIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
+import { PlusIcon, PencilIcon, TrashIcon, TrendingUpIcon, TrendingDownIcon, ScaleIcon, ArrowUpIcon, ArrowDownIcon, ArrowPathIcon } from './icons/Icons';
 
 type TransactionInsert = Database['public']['Tables']['transactions']['Insert'];
 type TransactionUpdate = Database['public']['Tables']['transactions']['Update'];
@@ -67,9 +67,12 @@ const FinancesView: React.FC = () => {
     const { addToast } = useToast();
 
     const fetchTransactions = useCallback(async () => {
+        setLoading(true);
         const { data, error } = await supabase.from('transactions').select('*');
         if (error) {
-            addToast('Error fetching transactions', 'error');
+            console.error("Fetch error:", error);
+            // Only show toast on error to avoid spamming
+            addToast('Error fetching transactions. Check permissions.', 'error');
         } else {
             setTransactions(data || []);
         }
@@ -271,7 +274,14 @@ const FinancesView: React.FC = () => {
                     ))}
                     {table.data.length === 0 && (
                         <tr>
-                            <td colSpan={4} className="p-8 text-center text-slate-500 italic">No records found for this month.</td>
+                            <td colSpan={4} className="p-12 text-center">
+                                <div className="flex flex-col items-center justify-center space-y-3">
+                                    <p className="text-slate-500 italic">No records found for this month.</p>
+                                    <button onClick={fetchTransactions} className="text-xs flex items-center text-indigo-400 hover:text-indigo-300 bg-white/5 px-3 py-1.5 rounded-lg">
+                                        <ArrowPathIcon className="h-3 w-3 mr-1"/> Refresh
+                                    </button>
+                                </div>
+                            </td>
                         </tr>
                     )}
                   </tbody>

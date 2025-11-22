@@ -11,18 +11,23 @@ import Login from './components/Login';
 import { ToastProvider } from './hooks/useToast';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { View } from './types';
-import { CodeIcon, ChartBarIcon, BriefcaseIcon, CheckCircleIcon, UserGroupIcon } from './components/icons/Icons';
+import { CodeIcon, ChartBarIcon, BriefcaseIcon, CheckCircleIcon, UserGroupIcon, ArrowPathIcon } from './components/icons/Icons';
 
 const Dashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<View>(View.Projects);
   const { user, loading, isAdmin } = useAuth();
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Reset view if access is revoked (e.g. switching users)
+  // Reset view if access is revoked
   React.useEffect(() => {
     if (!loading && !isAdmin && (activeView === View.Finances || activeView === View.Skills || activeView === View.Team)) {
         setActiveView(View.Projects);
     }
   }, [isAdmin, activeView, loading]);
+
+  const handleManualRefresh = () => {
+      setRefreshKey(prev => prev + 1);
+  };
 
   if (loading) {
       return (
@@ -37,20 +42,21 @@ const Dashboard: React.FC = () => {
     return <Login />;
   }
 
+  // Key prop forces re-render of components when refresh button is clicked
   const renderView = () => {
     switch (activeView) {
       case View.Projects:
-        return <ProjectsView />;
+        return <ProjectsView key={refreshKey} />;
       case View.Skills:
-        return isAdmin ? <SkillsView /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
+        return isAdmin ? <SkillsView key={refreshKey} /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
       case View.Finances:
-        return isAdmin ? <FinancesView /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
+        return isAdmin ? <FinancesView key={refreshKey} /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
       case View.Team:
-        return isAdmin ? <TeamView /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
+        return isAdmin ? <TeamView key={refreshKey} /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
       case View.Todos:
-        return <TodosView />;
+        return <TodosView key={refreshKey} />;
       default:
-        return <ProjectsView />;
+        return <ProjectsView key={refreshKey} />;
     }
   };
 
@@ -77,7 +83,7 @@ const Dashboard: React.FC = () => {
     <div className="flex h-screen font-sans overflow-hidden selection:bg-indigo-500/30">
       <Sidebar activeView={activeView} setActiveView={setActiveView} />
       <main className="flex-1 p-6 sm:p-10 overflow-y-auto relative scroll-smooth bg-slate-950">
-        <header className="mb-10 fade-in">
+        <header className="mb-10 fade-in flex justify-between items-start">
           <div className="flex items-center space-x-5">
             <div className="glass-panel p-3.5 rounded-2xl shadow-lg shadow-indigo-500/10">
               {icon}
@@ -87,6 +93,13 @@ const Dashboard: React.FC = () => {
               <p className="text-slate-400 mt-1 text-lg">{subtitle}</p>
             </div>
           </div>
+          <button 
+            onClick={handleManualRefresh}
+            className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all border border-white/5 active:scale-95"
+            title="Sync / Refresh Data"
+          >
+            <ArrowPathIcon className="h-6 w-6" />
+          </button>
         </header>
         <div className="w-full max-w-7xl mx-auto animate-fade-in-up pb-20">
           {renderView()}

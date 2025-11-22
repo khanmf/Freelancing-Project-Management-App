@@ -4,6 +4,7 @@ import { View } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../supabaseClient';
 import { BriefcaseIcon, CodeIcon, ChartBarIcon, DocumentTextIcon, CheckCircleIcon, LogoutIcon, UserGroupIcon, LockClosedIcon } from './icons/Icons';
+import { useToast } from '../hooks/useToast';
 
 interface SidebarProps {
   activeView: View;
@@ -11,7 +12,8 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
-  const { signOut, isAdmin } = useAuth();
+  const { signOut, isAdmin, user } = useAuth();
+  const { addToast } = useToast();
 
   const navItems = [
     { view: View.Projects, label: 'Projects', icon: <BriefcaseIcon className="h-5 w-5" />, allowed: true },
@@ -25,31 +27,36 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
     const code = window.prompt("Enter Admin Access Code:");
     if (code === "admin123") {
         try {
+             addToast("Attempting to promote user...", "info");
              // 1. Set local storage to unlock UI immediately
              window.localStorage.setItem('voice_dashboard_admin_override', 'true');
              
-             // 2. Attempt to permanently fix the database
-             const { data: { user } } = await supabase.auth.getUser();
+             // 2. Attempt to permanently fix the database using UPSERT
              if (user) {
-                 // We update the profile to admin. 
-                 // Note: This might fail if RLS policies are strict, but since we unlocked UI, 
-                 // the user can try again or we rely on the local override for now.
-                 const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+                 const { error } = await supabase.from('profiles').upsert({ 
+                    id: user.id,
+                    email: user.email,
+                    role: 'admin',
+                    full_name: user.email?.split('@')[0] || 'Admin'
+                 }, { onConflict: 'id' });
+
                  if (error) {
-                    alert("UI Unlocked. Database update failed (Permissions). You may need to run the SQL script in Supabase Dashboard.");
-                    console.error(error);
+                    console.error("DB Update Failed:", error);
+                    alert(`UI Unlocked, but Database blocked the role change.\n\nIf you still see no data, please run this in Supabase SQL Editor:\n\nUPDATE profiles SET role = 'admin' WHERE id = '${user.id}';`);
                  } else {
-                    alert("Success! You are now an Admin in the database.");
+                    addToast("Success! Database permissions updated.", "success");
                  }
              }
+             
+             // Force reload to apply changes
+             setTimeout(() => window.location.reload(), 1000);
+
         } catch (e) {
             console.error("Could not auto-update profile:", e);
             alert("UI Unlocked, but database connection failed.");
         }
-
-        window.location.reload();
     } else if (code) {
-        alert("Incorrect code.");
+        addToast("Incorrect code.", "error");
     }
   };
 
