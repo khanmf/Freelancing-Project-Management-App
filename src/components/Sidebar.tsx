@@ -1,10 +1,11 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../supabaseClient';
-import { BriefcaseIcon, CodeIcon, ChartBarIcon, DocumentTextIcon, CheckCircleIcon, LogoutIcon, UserGroupIcon, LockClosedIcon } from './icons/Icons';
+import { BriefcaseIcon, CodeIcon, ChartBarIcon, DocumentTextIcon, CheckCircleIcon, LogoutIcon, UserGroupIcon, LockClosedIcon, ArrowPathIcon } from './icons/Icons';
 import { useToast } from '../hooks/useToast';
+import ConnectionDebug from './ConnectionDebug';
 
 interface SidebarProps {
   activeView: View;
@@ -14,6 +15,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
   const { signOut, isAdmin, user } = useAuth();
   const { addToast } = useToast();
+  const [isDebugOpen, setIsDebugOpen] = useState(false);
 
   const navItems = [
     { view: View.Projects, label: 'Projects', icon: <BriefcaseIcon className="h-5 w-5" />, allowed: true },
@@ -28,10 +30,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
     if (code === "admin123") {
         try {
              addToast("Attempting to promote user...", "info");
-             // 1. Set local storage to unlock UI immediately
              window.localStorage.setItem('voice_dashboard_admin_override', 'true');
              
-             // 2. Attempt to permanently fix the database using UPSERT
              if (user) {
                  const { error } = await supabase.from('profiles').upsert({ 
                     id: user.id,
@@ -42,18 +42,15 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
 
                  if (error) {
                     console.error("DB Update Failed:", error);
-                    alert(`UI Unlocked, but Database blocked the role change.\n\nIf you still see no data, please run this in Supabase SQL Editor:\n\nUPDATE profiles SET role = 'admin' WHERE id = '${user.id}';`);
+                    addToast("Role update failed by DB. Check System Status below.", "error");
                  } else {
                     addToast("Success! Database permissions updated.", "success");
                  }
              }
-             
-             // Force reload to apply changes
              setTimeout(() => window.location.reload(), 1000);
 
         } catch (e) {
             console.error("Could not auto-update profile:", e);
-            alert("UI Unlocked, but database connection failed.");
         }
     } else if (code) {
         addToast("Incorrect code.", "error");
@@ -61,6 +58,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
   };
 
   return (
+    <>
     <div className="w-20 hover:w-72 transition-all duration-300 ease-out bg-slate-900/80 backdrop-blur-xl border-r border-white/5 flex flex-col group overflow-hidden z-20 shadow-2xl h-full">
       <div className="p-5 flex items-center space-x-4 h-20 border-b border-white/5">
         <div className="flex-shrink-0 bg-gradient-to-br from-indigo-500 to-violet-600 p-2 rounded-lg shadow-lg shadow-indigo-500/20">
@@ -100,7 +98,20 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
       </nav>
       
       <div className="p-4 border-t border-white/5 space-y-1">
-        {/* Button is ALWAYS visible now to allow fixing broken states */}
+        <button
+            onClick={() => setIsDebugOpen(true)}
+            className="w-full flex items-center space-x-4 p-3.5 rounded-xl text-left transition-all duration-200 text-emerald-500/80 hover:bg-emerald-500/10 hover:text-emerald-400 border border-transparent"
+            title="System Diagnostics"
+        >
+            <div className="flex-shrink-0 relative">
+                <div className="h-2 w-2 bg-emerald-500 rounded-full absolute top-0 right-0 animate-pulse"></div>
+                <ArrowPathIcon className="h-5 w-5" />
+            </div>
+            <span className="font-medium opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
+                System Status
+            </span>
+        </button>
+
         <button
             onClick={handleAdminOverride}
             className="w-full flex items-center space-x-4 p-3.5 rounded-xl text-left transition-all duration-200 text-slate-500 hover:bg-white/5 hover:text-indigo-400 border border-transparent"
@@ -127,6 +138,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
         </button>
       </div>
     </div>
+    <ConnectionDebug isOpen={isDebugOpen} onClose={() => setIsDebugOpen(false)} />
+    </>
   );
 };
 

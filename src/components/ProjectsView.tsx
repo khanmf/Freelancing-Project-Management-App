@@ -536,13 +536,10 @@ const ProjectsView: React.FC = () => {
         </div>
     );
 
-    const filteredProjects = isAdmin 
-        ? projects 
-        : projects.filter(p => 
-            p.subtasks.some(st => st.assigned_to === profile?.full_name) || 
-            p.subtasks.length === 0
-        );
-
+    // Note: We've removed the strict filtering temporarily to debug data visibility
+    // If you see data now, it means the client-side logic was hiding it.
+    const filteredProjects = projects;
+    
     const noProjectsExist = filteredProjects.length === 0;
 
     return (
