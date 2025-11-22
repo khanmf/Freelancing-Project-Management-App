@@ -29,13 +29,6 @@ const Dashboard: React.FC = () => {
         <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white space-y-4">
              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
              <p className="text-slate-400 text-sm animate-pulse">Loading your workspace...</p>
-             {/* Escape hatch if loading gets stuck despite safeguards */}
-             <button 
-                onClick={() => window.location.reload()} 
-                className="mt-4 text-xs text-slate-600 hover:text-slate-400 underline"
-             >
-                Taking too long? Reload
-             </button>
         </div>
       );
   }

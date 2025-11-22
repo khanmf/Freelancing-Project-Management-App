@@ -21,6 +21,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
+  // Check for local admin override (manual fix for owners stuck as collaborators)
+  const hasAdminOverride = window.localStorage.getItem('voice_dashboard_admin_override') === 'true';
+
   const fetchProfile = async (userId: string, email?: string) => {
     try {
       const { data, error } = await supabase
@@ -30,14 +33,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .single();
 
       if (error) {
-        // Fallback: create a temporary profile object in state if DB fetch fails or row is missing.
-        // This ensures the app loads even if the profile record hasn't been created yet.
         console.warn("Profile fetch warning (using fallback):", error.message);
         const fallbackProfile: Profile = {
             id: userId,
             email: email || '',
             full_name: email?.split('@')[0] || 'User',
-            role: 'collaborator' // Default to collaborator for safety
+            role: 'collaborator'
         };
         setProfile(fallbackProfile);
       } else {
@@ -51,9 +52,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   useEffect(() => {
     let mounted = true;
     
-    // SAFETY TIMEOUT:
-    // If Supabase takes too long or hangs, this timer forces the app to stop loading after 3 seconds.
-    // This fixes the "stuck purple spinner" issue.
+    // SAFETY TIMEOUT: Force app to load after 3 seconds if DB hangs
     const safetyTimer = setTimeout(() => {
         if (mounted && loading) {
             console.warn("Auth loading timed out. Forcing UI render.");
@@ -88,14 +87,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(currentUser);
       
       if (currentUser) {
-        // We don't await this here to prevent blocking the UI updates, 
-        // as initAuth handles the initial critical load.
         fetchProfile(currentUser.id, currentUser.email);
       } else {
         setProfile(null);
       }
       
-      // Ensure loading is false whenever auth state settles
       setLoading(false);
     });
 
@@ -114,11 +110,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await supabase.auth.signOut();
     setProfile(null);
     setUser(null);
+    // Clear override on logout
+    window.localStorage.removeItem('voice_dashboard_admin_override');
     addToast('Logged out successfully', 'info');
   };
 
-  // Check if role is explicitly admin
-  const isAdmin = profile?.role === 'admin';
+  // Admin check: True if DB role is admin OR if local override is set
+  const isAdmin = profile?.role === 'admin' || hasAdminOverride;
 
   return (
     <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, isAdmin }}>

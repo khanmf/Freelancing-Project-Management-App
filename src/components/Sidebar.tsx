@@ -2,7 +2,7 @@
 import React from 'react';
 import { View } from '../types';
 import { useAuth } from '../contexts/AuthContext';
-import { BriefcaseIcon, CodeIcon, ChartBarIcon, DocumentTextIcon, CheckCircleIcon, LogoutIcon, UserGroupIcon } from './icons/Icons';
+import { BriefcaseIcon, CodeIcon, ChartBarIcon, DocumentTextIcon, CheckCircleIcon, LogoutIcon, UserGroupIcon, LockClosedIcon } from './icons/Icons';
 
 interface SidebarProps {
   activeView: View;
@@ -13,12 +13,22 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
   const { signOut, isAdmin } = useAuth();
 
   const navItems = [
-    { view: View.Projects, label: 'Projects', icon: <BriefcaseIcon className="h-5 w-5" />, allowed: true }, // Everyone sees projects (filtered)
+    { view: View.Projects, label: 'Projects', icon: <BriefcaseIcon className="h-5 w-5" />, allowed: true },
     { view: View.Skills, label: 'Skills', icon: <CodeIcon className="h-5 w-5" />, allowed: isAdmin },
     { view: View.Finances, label: 'Finances', icon: <ChartBarIcon className="h-5 w-5" />, allowed: isAdmin },
     { view: View.Team, label: 'Team', icon: <UserGroupIcon className="h-5 w-5" />, allowed: isAdmin },
     { view: View.Todos, label: 'To-Do List', icon: <CheckCircleIcon className="h-5 w-5" />, allowed: true },
   ];
+
+  const handleAdminOverride = () => {
+    const code = window.prompt("Enter Admin Access Code:");
+    if (code === "admin123") {
+        window.localStorage.setItem('voice_dashboard_admin_override', 'true');
+        window.location.reload();
+    } else if (code) {
+        alert("Incorrect code.");
+    }
+  };
 
   return (
     <div className="w-20 hover:w-72 transition-all duration-300 ease-out bg-slate-900/80 backdrop-blur-xl border-r border-white/5 flex flex-col group overflow-hidden z-20 shadow-2xl h-full">
@@ -59,7 +69,21 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
         })}
       </nav>
       
-      <div className="p-4 border-t border-white/5">
+      <div className="p-4 border-t border-white/5 space-y-1">
+         {!isAdmin && (
+            <button
+                onClick={handleAdminOverride}
+                className="w-full flex items-center space-x-4 p-3.5 rounded-xl text-left transition-all duration-200 text-slate-500 hover:bg-white/5 hover:text-indigo-400 border border-transparent"
+                title="Claim Admin Access"
+            >
+                <div className="flex-shrink-0">
+                    <LockClosedIcon className="h-5 w-5" />
+                </div>
+                <span className="font-medium opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
+                    Admin Access
+                </span>
+            </button>
+         )}
         <button
             onClick={signOut}
             className="w-full flex items-center space-x-4 p-3.5 rounded-xl text-left transition-all duration-200 text-slate-400 hover:bg-red-500/10 hover:text-red-400 border border-transparent hover:border-red-500/20"

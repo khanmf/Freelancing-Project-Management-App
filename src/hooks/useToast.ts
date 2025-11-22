@@ -1,4 +1,5 @@
-import React, { createContext, useState, useContext, ReactNode } from 'react';
+
+import React, { createContext, useState, useContext, ReactNode, useCallback } from 'react';
 import { ToastMessage, ToastContextType } from '../types';
 import Toast from '../components/Toast';
 
@@ -15,16 +16,16 @@ export const useToast = () => {
 export const ToastProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
 
-  const addToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+  // CRITICAL FIX: Wrapped in useCallback to prevent infinite loops in useEffects that depend on addToast
+  const addToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info') => {
     const id = Date.now().toString();
     setToasts(prevToasts => [...prevToasts, { id, message, type }]);
-  };
+  }, []);
 
-  const removeToast = (id: string) => {
+  const removeToast = useCallback((id: string) => {
     setToasts(prevToasts => prevToasts.filter(toast => toast.id !== id));
-  };
+  }, []);
 
-  // FIX: Replaced JSX with React.createElement to resolve parsing issues in .ts file.
   return React.createElement(
     ToastContext.Provider,
     { value: { addToast } },

@@ -325,7 +325,6 @@ const ProjectRow: React.FC<{
                         
                         <div className="grid gap-2">
                         {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => {
-                             // Highlight tasks assigned to current user if logged in as collaborator
                              const isAssignedToMe = !isAdmin && st.assigned_to === currentUserFullname;
                              
                              return (
@@ -344,7 +343,6 @@ const ProjectRow: React.FC<{
                                 <div className="flex items-center space-x-2">
                                         <span className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getSubtaskStatusColor(st.status)}`}>{st.status}</span>
                                         
-                                        {/* Actions: Admin does everything. Collaborator can only edit their own task (e.g. update status) */}
                                         {(isAdmin || isAssignedToMe) && (
                                             <div className="flex items-center space-x-1 opacity-0 group-hover/subtask:opacity-100 transition-opacity px-2 border-l border-white/5 ml-2">
                                                 {isAdmin && (
@@ -402,7 +400,7 @@ const ProjectsView: React.FC = () => {
     }, []);
 
     const fetchProjects = useCallback(async () => {
-        setLoading(true);
+        // Don't set loading true here to prevent flashing, unless it's initial
         try {
             const { data: projectsData, error: projectsError } = await supabase
                 .from('projects')
@@ -435,7 +433,12 @@ const ProjectsView: React.FC = () => {
     }, [addToast]);
 
     useEffect(() => {
+        setLoading(true);
         fetchProjects();
+        
+        // Safety timeout for loading spinner
+        const timer = setTimeout(() => setLoading(false), 5000);
+
         const channel = supabase.channel('projects-realtime')
           .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, (payload) => {
             fetchProjects();
@@ -447,6 +450,7 @@ const ProjectsView: React.FC = () => {
 
         return () => {
             supabase.removeChannel(channel);
+            clearTimeout(timer);
         };
     }, [fetchProjects]);
 
@@ -532,23 +536,12 @@ const ProjectsView: React.FC = () => {
         </div>
     );
 
-    // Filtering Logic:
-    // If Admin: Show all projects.
-    // If Collaborator: Show projects that contain at least one subtask assigned to them OR are assigned to project level (if we had that field, defaulting to task level check).
     const filteredProjects = isAdmin 
         ? projects 
         : projects.filter(p => 
             p.subtasks.some(st => st.assigned_to === profile?.full_name) || 
-            // Optional: If you want collaborators to see all projects, remove this filter. 
-            // Based on prompt "he has only access to those tasks or those projects that are assigned to him"
-            // We are checking if any subtask is assigned to the user.
-            p.subtasks.length === 0 // Edge case: Should they see empty projects? Probably not, but keeping it clean.
+            p.subtasks.length === 0
         );
-
-    // We need to further filter filtering. If a project is visible, we might want to show only relevant tasks, or all tasks?
-    // The prompt says "access to those tasks... assigned to him".
-    // However, seeing the context of the whole project is usually helpful. 
-    // For this implementation, they see the Project card if they have work in it.
 
     const noProjectsExist = filteredProjects.length === 0;
 
