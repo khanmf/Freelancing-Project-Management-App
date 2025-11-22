@@ -46,14 +46,15 @@ const AIProjectModal: React.FC<AIProjectModalProps> = ({ isOpen, onClose, onProj
                 client: { type: Type.STRING, description: 'The name of the client.' },
                 deadline: { type: Type.STRING, description: 'The project deadline in YYYY-MM-DD format. Infer from spoken dates like "next Friday".' },
                 category: { type: Type.STRING, enum: PROJECT_CATEGORIES, description: 'The category of the project.' },
-                subtasks: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'A list of 3-5 suggested subtasks for this project.'}
+                subtasks: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'A list of 5-7 detailed subtasks for this project, broken down by phase.'}
             },
             required: ['name', 'client', 'deadline', 'category', 'subtasks'],
         };
         
+      // Using Gemini 3 Pro Preview for superior reasoning on project breakdown
       const response = await ai.current.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: `Parse the following project description and extract the details. Today's date is ${new Date().toLocaleDateString('en-CA')}. Description: "${prompt}"`,
+        model: 'gemini-3-pro-preview',
+        contents: `You are an expert project manager. Parse the following project description, extract the key details, and generate a comprehensive list of subtasks. Today's date is ${new Date().toLocaleDateString('en-CA')}. Description: "${prompt}"`,
         config: {
           responseMimeType: 'application/json',
           responseSchema: responseSchema,
@@ -61,6 +62,8 @@ const AIProjectModal: React.FC<AIProjectModalProps> = ({ isOpen, onClose, onProj
       });
       
       const generatedText = response.text;
+      if (!generatedText) throw new Error("No content generated.");
+      
       const parsedData = JSON.parse(generatedText);
       
       if (parsedData.name && parsedData.client && parsedData.deadline && parsedData.category) {
@@ -69,7 +72,7 @@ const AIProjectModal: React.FC<AIProjectModalProps> = ({ isOpen, onClose, onProj
         throw new Error("AI response was missing required fields.");
       }
 
-    } catch (e) {
+    } catch (e: any) {
       console.error('Error generating project with AI:', e);
       setError('Could not generate project details. Please try rephrasing.');
     } finally {
@@ -78,11 +81,11 @@ const AIProjectModal: React.FC<AIProjectModalProps> = ({ isOpen, onClose, onProj
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Generate Project with AI">
+    <Modal isOpen={isOpen} onClose={onClose} title="Generate Project with Gemini 3 Pro">
       <div className="space-y-5">
         <div className="bg-indigo-500/10 border border-indigo-500/20 rounded-lg p-4">
             <p className="text-sm text-indigo-200">
-            Describe your project, and Gemini will extract the details and suggest subtasks for you.
+            Describe your project, and Gemini 3 will analyze requirements and create a detailed task list.
             </p>
         </div>
         
@@ -90,7 +93,7 @@ const AIProjectModal: React.FC<AIProjectModalProps> = ({ isOpen, onClose, onProj
             <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            placeholder="E.g., Build a marketing website for 'TechNova' due by next Friday..."
+            placeholder="E.g., Create a full stack e-commerce store for 'UrbanThreads' with Stripe payment integration, due by end of next month..."
             className="input-field w-full h-32 resize-none"
             disabled={isLoading}
             />

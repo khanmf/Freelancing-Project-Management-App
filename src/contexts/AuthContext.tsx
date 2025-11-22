@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '../supabaseClient';
-import { Profile, UserRole } from '../types';
+import { Profile } from '../types';
 import { useToast } from '../hooks/useToast';
 
 interface AuthContextType {
@@ -21,7 +21,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [loading, setLoading] = useState(true);
   const { addToast } = useToast();
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, email?: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -30,14 +30,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .single();
 
       if (error) {
-        console.warn("Profile fetch error (using default):", error.message);
-        // Fallback for initial setup if profiles table isn't populated correctly
-        setProfile({
+        // Fallback: create a temporary profile object in state if DB fetch fails or row is missing.
+        // This ensures the app loads even if the profile record hasn't been created yet.
+        console.warn("Profile fetch warning (using fallback):", error.message);
+        const fallbackProfile: Profile = {
             id: userId,
-            email: user?.email || '',
-            full_name: user?.email?.split('@')[0] || 'User',
-            role: 'admin' // Defaulting to admin for safety in dev, should be collaborator in prod
-        });
+            email: email || '',
+            full_name: email?.split('@')[0] || 'User',
+            role: 'collaborator' // Default to collaborator for safety
+        };
+        setProfile(fallbackProfile);
       } else {
         setProfile(data as Profile);
       }
@@ -47,36 +49,65 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
-      }
-      setLoading(false);
+    let mounted = true;
+    
+    // SAFETY TIMEOUT:
+    // If Supabase takes too long or hangs, this timer forces the app to stop loading after 3 seconds.
+    // This fixes the "stuck purple spinner" issue.
+    const safetyTimer = setTimeout(() => {
+        if (mounted && loading) {
+            console.warn("Auth loading timed out. Forcing UI render.");
+            setLoading(false);
+        }
+    }, 3000);
+
+    const initAuth = async () => {
+        try {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (mounted) {
+                setUser(session?.user ?? null);
+                if (session?.user) {
+                    await fetchProfile(session.user.id, session.user.email);
+                } else {
+                    setProfile(null);
+                }
+            }
+        } catch (e) {
+            console.error("Auth init failed:", e);
+        } finally {
+            if (mounted) setLoading(false);
+        }
     };
 
-    getSession();
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        await fetchProfile(session.user.id);
+      if (!mounted) return;
+      
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      
+      if (currentUser) {
+        // We don't await this here to prevent blocking the UI updates, 
+        // as initAuth handles the initial critical load.
+        fetchProfile(currentUser.id, currentUser.email);
       } else {
         setProfile(null);
       }
+      
+      // Ensure loading is false whenever auth state settles
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(safetyTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signIn = async (email: string) => {
-    // Using Magic Link for simplicity in this demo environment
-    // In a real app, you might pass password as well
-    // For this specific prompt implementation, assuming email/password UI in Login.tsx
-    // but wrapping the actual Supabase call logic there.
-    // This function here is a placeholder if we wanted global signin logic.
+    // Placeholder for global sign-in logic if needed
   };
 
   const signOut = async () => {
@@ -86,6 +117,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     addToast('Logged out successfully', 'info');
   };
 
+  // Check if role is explicitly admin
   const isAdmin = profile?.role === 'admin';
 
   return (

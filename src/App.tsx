@@ -19,15 +19,23 @@ const Dashboard: React.FC = () => {
 
   // Reset view if access is revoked (e.g. switching users)
   React.useEffect(() => {
-    if (!isAdmin && (activeView === View.Finances || activeView === View.Skills || activeView === View.Team)) {
+    if (!loading && !isAdmin && (activeView === View.Finances || activeView === View.Skills || activeView === View.Team)) {
         setActiveView(View.Projects);
     }
-  }, [isAdmin, activeView]);
+  }, [isAdmin, activeView, loading]);
 
   if (loading) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-slate-950 text-white">
+        <div className="min-h-screen flex flex-col items-center justify-center bg-slate-950 text-white space-y-4">
              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+             <p className="text-slate-400 text-sm animate-pulse">Loading your workspace...</p>
+             {/* Escape hatch if loading gets stuck despite safeguards */}
+             <button 
+                onClick={() => window.location.reload()} 
+                className="mt-4 text-xs text-slate-600 hover:text-slate-400 underline"
+             >
+                Taking too long? Reload
+             </button>
         </div>
       );
   }
@@ -41,11 +49,11 @@ const Dashboard: React.FC = () => {
       case View.Projects:
         return <ProjectsView />;
       case View.Skills:
-        return isAdmin ? <SkillsView /> : <div className="text-white">Access Denied</div>;
+        return isAdmin ? <SkillsView /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
       case View.Finances:
-        return isAdmin ? <FinancesView /> : <div className="text-white">Access Denied</div>;
+        return isAdmin ? <FinancesView /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
       case View.Team:
-        return isAdmin ? <TeamView /> : <div className="text-white">Access Denied</div>;
+        return isAdmin ? <TeamView /> : <div className="p-8 text-center text-slate-400 border-2 border-dashed border-white/10 rounded-2xl">Access Restricted: Admin Only</div>;
       case View.Todos:
         return <TodosView />;
       default:
@@ -91,7 +99,6 @@ const Dashboard: React.FC = () => {
           {renderView()}
         </div>
       </main>
-      {/* Only admin gets the AI assistant for now, or maybe everyone? Let's keep it for everyone but it uses their own key implicitly if not set */}
       <VoiceAssistant />
     </div>
   );
