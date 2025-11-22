@@ -1,11 +1,11 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { SubtaskWithProject } from './TodosView';
 import { SubtaskStatus, Profile, UserRole } from '../types';
 import { useToast } from '../hooks/useToast';
 import { useAuth } from '../contexts/AuthContext';
-import { UserGroupIcon, BriefcaseIcon, ClockIcon, UserIcon, ShieldCheckIcon, ChevronDownIcon } from './icons/Icons';
+import { UserGroupIcon, BriefcaseIcon, ClockIcon, ShieldCheckIcon, ChevronDownIcon, ArrowDownIcon } from './icons/Icons';
 
 const TeamView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'workload' | 'members'>('workload');
@@ -16,10 +16,7 @@ const TeamView: React.FC = () => {
   const { addToast } = useToast();
   const { profile: currentUserProfile } = useAuth();
 
-  useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 3000);
-    
-    const fetchData = async () => {
+  const fetchData = useCallback(async () => {
       setLoading(true);
       try {
         // Fetch Tasks
@@ -30,7 +27,7 @@ const TeamView: React.FC = () => {
           .neq('assigned_to', '');
         
         if (tasksError) throw tasksError;
-        setTasks(tasksData as SubtaskWithProject[]);
+        setTasks(tasksData as SubtaskWithProject[] || []);
 
         // Fetch Profiles (for Members tab)
         const { data: profilesData, error: profilesError } = await supabase
@@ -39,19 +36,19 @@ const TeamView: React.FC = () => {
             .order('full_name');
             
         if (profilesError) throw profilesError;
-        setProfiles(profilesData as Profile[]);
+        setProfiles(profilesData as Profile[] || []);
 
       } catch (error: any) {
         console.error('Error fetching team data:', error);
-        addToast('Error loading team data', 'error');
+        addToast('Error loading team data. ' + error.message, 'error');
       } finally {
         setLoading(false);
       }
-    };
+  }, [addToast]);
 
+  useEffect(() => {
     fetchData();
-    return () => clearTimeout(timer);
-  }, [addToast, activeTab]);
+  }, [fetchData]);
 
   const handleUpdateRole = async (userId: string, newRole: UserRole) => {
       if (userId === currentUserProfile?.id) {
@@ -96,18 +93,23 @@ const TeamView: React.FC = () => {
   return (
     <div className="space-y-6 h-[calc(100vh-140px)] flex flex-col">
       {/* Tab Navigation */}
-      <div className="flex space-x-4 border-b border-white/5 pb-1">
-        <button
-            onClick={() => setActiveTab('workload')}
-            className={`px-4 py-2 text-sm font-medium transition-colors rounded-t-lg border-b-2 ${activeTab === 'workload' ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-        >
-            Workload Overview
-        </button>
-        <button
-            onClick={() => setActiveTab('members')}
-            className={`px-4 py-2 text-sm font-medium transition-colors rounded-t-lg border-b-2 ${activeTab === 'members' ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
-        >
-            Manage Members
+      <div className="flex justify-between items-end border-b border-white/5 pb-1">
+        <div className="flex space-x-4">
+            <button
+                onClick={() => setActiveTab('workload')}
+                className={`px-4 py-2 text-sm font-medium transition-colors rounded-t-lg border-b-2 ${activeTab === 'workload' ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+            >
+                Workload Overview
+            </button>
+            <button
+                onClick={() => setActiveTab('members')}
+                className={`px-4 py-2 text-sm font-medium transition-colors rounded-t-lg border-b-2 ${activeTab === 'members' ? 'border-indigo-500 text-indigo-400 bg-indigo-500/10' : 'border-transparent text-slate-400 hover:text-slate-200'}`}
+            >
+                Manage Members
+            </button>
+        </div>
+        <button onClick={fetchData} className="text-xs text-indigo-400 hover:text-indigo-300 px-3 py-1.5 bg-indigo-500/10 rounded-lg hover:bg-indigo-500/20 transition-colors mb-2">
+            Sync Data
         </button>
       </div>
 
@@ -127,7 +129,7 @@ const TeamView: React.FC = () => {
                             <th className="px-6 py-3">User</th>
                             <th className="px-6 py-3">Email</th>
                             <th className="px-6 py-3">Role</th>
-                            <th className="px-6 py-3">Last Active</th>
+                            <th className="px-6 py-3">Status</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-white/5">
@@ -163,7 +165,6 @@ const TeamView: React.FC = () => {
                                     </div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
-                                    {/* Placeholder for last active if we had it */}
                                     <span className="flex items-center">
                                         <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-2"></div>
                                         Active

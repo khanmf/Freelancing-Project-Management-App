@@ -24,17 +24,27 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
   const handleAdminOverride = async () => {
     const code = window.prompt("Enter Admin Access Code:");
     if (code === "admin123") {
-        // 1. Set local storage to unlock UI immediately
-        window.localStorage.setItem('voice_dashboard_admin_override', 'true');
-        
-        // 2. Attempt to permanently fix the database
         try {
+             // 1. Set local storage to unlock UI immediately
+             window.localStorage.setItem('voice_dashboard_admin_override', 'true');
+             
+             // 2. Attempt to permanently fix the database
              const { data: { user } } = await supabase.auth.getUser();
              if (user) {
-                 await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+                 // We update the profile to admin. 
+                 // Note: This might fail if RLS policies are strict, but since we unlocked UI, 
+                 // the user can try again or we rely on the local override for now.
+                 const { error } = await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+                 if (error) {
+                    alert("UI Unlocked. Database update failed (Permissions). You may need to run the SQL script in Supabase Dashboard.");
+                    console.error(error);
+                 } else {
+                    alert("Success! You are now an Admin in the database.");
+                 }
              }
         } catch (e) {
             console.error("Could not auto-update profile:", e);
+            alert("UI Unlocked, but database connection failed.");
         }
 
         window.location.reload();
@@ -83,20 +93,20 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
       </nav>
       
       <div className="p-4 border-t border-white/5 space-y-1">
-         {!isAdmin && (
-            <button
-                onClick={handleAdminOverride}
-                className="w-full flex items-center space-x-4 p-3.5 rounded-xl text-left transition-all duration-200 text-slate-500 hover:bg-white/5 hover:text-indigo-400 border border-transparent"
-                title="Claim Admin Access"
-            >
-                <div className="flex-shrink-0">
-                    <LockClosedIcon className="h-5 w-5" />
-                </div>
-                <span className="font-medium opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
-                    Admin Access
-                </span>
-            </button>
-         )}
+        {/* Button is ALWAYS visible now to allow fixing broken states */}
+        <button
+            onClick={handleAdminOverride}
+            className="w-full flex items-center space-x-4 p-3.5 rounded-xl text-left transition-all duration-200 text-slate-500 hover:bg-white/5 hover:text-indigo-400 border border-transparent"
+            title="Claim Admin Access"
+        >
+            <div className="flex-shrink-0">
+                <LockClosedIcon className="h-5 w-5" />
+            </div>
+            <span className="font-medium opacity-0 group-hover:opacity-100 transition-all duration-200 whitespace-nowrap">
+                Admin Access
+            </span>
+        </button>
+
         <button
             onClick={signOut}
             className="w-full flex items-center space-x-4 p-3.5 rounded-xl text-left transition-all duration-200 text-slate-400 hover:bg-red-500/10 hover:text-red-400 border border-transparent hover:border-red-500/20"

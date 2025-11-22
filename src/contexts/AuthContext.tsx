@@ -1,5 +1,5 @@
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { Profile } from '../types';
 import { useToast } from '../hooks/useToast';
@@ -10,6 +10,7 @@ interface AuthContextType {
   loading: boolean;
   signIn: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
   isAdmin: boolean;
 }
 
@@ -24,7 +25,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Check for local admin override (manual fix for owners stuck as collaborators)
   const hasAdminOverride = window.localStorage.getItem('voice_dashboard_admin_override') === 'true';
 
-  const fetchProfile = async (userId: string, email?: string) => {
+  const fetchProfile = useCallback(async (userId: string, email?: string) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
@@ -33,7 +34,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .single();
 
       if (error) {
-        console.warn("Profile fetch warning (using fallback):", error.message);
+        console.warn("Profile fetch warning:", error.message);
+        // Fallback to local structure if DB read fails
         const fallbackProfile: Profile = {
             id: userId,
             email: email || '',
@@ -47,7 +49,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } catch (error) {
       console.error("Profile error:", error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -87,7 +89,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       setUser(currentUser);
       
       if (currentUser) {
-        fetchProfile(currentUser.id, currentUser.email);
+        await fetchProfile(currentUser.id, currentUser.email);
       } else {
         setProfile(null);
       }
@@ -100,7 +102,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [fetchProfile]);
 
   const signIn = async (email: string) => {
     // Placeholder for global sign-in logic if needed
@@ -110,16 +112,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     await supabase.auth.signOut();
     setProfile(null);
     setUser(null);
-    // Clear override on logout
     window.localStorage.removeItem('voice_dashboard_admin_override');
     addToast('Logged out successfully', 'info');
+  };
+
+  const refreshProfile = async () => {
+      if (user) {
+          await fetchProfile(user.id, user.email);
+      }
   };
 
   // Admin check: True if DB role is admin OR if local override is set
   const isAdmin = profile?.role === 'admin' || hasAdminOverride;
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, isAdmin }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, refreshProfile, isAdmin }}>
       {children}
     </AuthContext.Provider>
   );
