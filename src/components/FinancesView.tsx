@@ -78,6 +78,9 @@ const FinancesView: React.FC = () => {
 
     useEffect(() => {
         fetchTransactions();
+        // Safety timer to stop spinner
+        const timer = setTimeout(() => setLoading(false), 3000);
+
         const channel = supabase.channel('transactions-changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, (payload) => {
                 fetchTransactions();
@@ -86,6 +89,7 @@ const FinancesView: React.FC = () => {
 
         return () => {
             supabase.removeChannel(channel);
+            clearTimeout(timer);
         };
     }, [fetchTransactions]);
 

@@ -2,6 +2,7 @@
 import React from 'react';
 import { View } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../supabaseClient';
 import { BriefcaseIcon, CodeIcon, ChartBarIcon, DocumentTextIcon, CheckCircleIcon, LogoutIcon, UserGroupIcon, LockClosedIcon } from './icons/Icons';
 
 interface SidebarProps {
@@ -20,10 +21,22 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView }) => {
     { view: View.Todos, label: 'To-Do List', icon: <CheckCircleIcon className="h-5 w-5" />, allowed: true },
   ];
 
-  const handleAdminOverride = () => {
+  const handleAdminOverride = async () => {
     const code = window.prompt("Enter Admin Access Code:");
     if (code === "admin123") {
+        // 1. Set local storage to unlock UI immediately
         window.localStorage.setItem('voice_dashboard_admin_override', 'true');
+        
+        // 2. Attempt to permanently fix the database
+        try {
+             const { data: { user } } = await supabase.auth.getUser();
+             if (user) {
+                 await supabase.from('profiles').update({ role: 'admin' }).eq('id', user.id);
+             }
+        } catch (e) {
+            console.error("Could not auto-update profile:", e);
+        }
+
         window.location.reload();
     } else if (code) {
         alert("Incorrect code.");

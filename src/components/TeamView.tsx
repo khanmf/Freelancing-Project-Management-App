@@ -17,6 +17,8 @@ const TeamView: React.FC = () => {
   const { profile: currentUserProfile } = useAuth();
 
   useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 3000);
+    
     const fetchData = async () => {
       setLoading(true);
       try {
@@ -48,6 +50,7 @@ const TeamView: React.FC = () => {
     };
 
     fetchData();
+    return () => clearTimeout(timer);
   }, [addToast, activeTab]);
 
   const handleUpdateRole = async (userId: string, newRole: UserRole) => {

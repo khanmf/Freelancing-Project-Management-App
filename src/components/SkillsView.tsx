@@ -145,6 +145,8 @@ const SkillsView: React.FC = () => {
 
     useEffect(() => {
         fetchSkills();
+        const timer = setTimeout(() => setLoading(false), 3000);
+        
         const channel = supabase.channel('skills-changes')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'skills' }, (payload) => {
                 fetchSkills();
@@ -153,6 +155,7 @@ const SkillsView: React.FC = () => {
 
         return () => {
             supabase.removeChannel(channel);
+            clearTimeout(timer);
         };
     }, [fetchSkills]);
 

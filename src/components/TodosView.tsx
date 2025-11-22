@@ -129,12 +129,17 @@ const TodosView: React.FC = () => {
 
     useEffect(() => {
         fetchData();
+        const timer = setTimeout(() => setLoading(false), 3000);
+
         const channel = supabase.channel('public-changes')
             .on('postgres_changes', { event: '*', schema: 'public' }, (payload) => {
                 fetchData();
             })
             .subscribe();
-        return () => { supabase.removeChannel(channel); };
+        return () => { 
+            supabase.removeChannel(channel);
+            clearTimeout(timer);
+        };
     }, [fetchData]);
 
     const manuallySortedTasks = useMemo(() => {
@@ -320,4 +325,3 @@ const TodosView: React.FC = () => {
 };
 
 export default TodosView;
-    
