@@ -1,8 +1,10 @@
+
 export enum View {
   Projects = 'projects',
   Skills = 'skills',
   Finances = 'finances',
   Todos = 'todos',
+  Team = 'team',
 }
 
 export enum ProjectStatus {
@@ -11,7 +13,6 @@ export enum ProjectStatus {
   Done = 'Done',
 }
 
-// New enum for detailed subtask statuses
 export enum SubtaskStatus {
   NotStarted = 'Not Started',
   InProgress = 'In Progress',
@@ -47,8 +48,15 @@ export enum TransactionType {
     Expense = 'expense',
 }
 
-// These types are generated from the Supabase schema.
-// A good practice would be to use Supabase CLI to generate these automatically.
+export type UserRole = 'admin' | 'collaborator';
+
+export interface Profile {
+  id: string;
+  email: string;
+  full_name: string;
+  role: UserRole;
+}
+
 export type Json =
   | string
   | number
@@ -60,6 +68,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      profiles: {
+        Row: {
+            id: string
+            email: string
+            full_name: string | null
+            role: string
+        }
+        Insert: {
+            id: string
+            email: string
+            full_name?: string | null
+            role?: string
+        }
+        Update: {
+            id?: string
+            email?: string
+            full_name?: string | null
+            role?: string
+        }
+        Relationships: []
+      }
       projects: {
         Row: {
           id: string
@@ -91,7 +120,6 @@ export type Database = {
           created_at?: string | null
           budget?: number | null
         }
-        // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: []
       }
       subtasks: {
@@ -125,7 +153,6 @@ export type Database = {
           deadline?: string | null
           position?: number
         }
-        // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: [
           {
             foreignKeyName: "subtasks_project_id_fkey"
@@ -160,7 +187,6 @@ export type Database = {
           category?: string
           created_at?: string | null
         }
-        // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: []
       }
       transactions: {
@@ -188,7 +214,6 @@ export type Database = {
           type?: string
           created_at?: string | null
         }
-        // FIX: Add Relationships array to fix 'never' type inference issues.
         Relationships: []
       }
     }
@@ -207,7 +232,6 @@ export type Database = {
   }
 }
 
-// Custom application types that may extend or combine the DB types
 export type Project = Database['public']['Tables']['projects']['Row'] & {
   subtasks: Subtask[];
 };

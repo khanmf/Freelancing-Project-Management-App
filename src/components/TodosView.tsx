@@ -8,7 +8,7 @@ import Modal from './Modal';
 import { PlusIcon, PencilIcon, TrashIcon, CheckCircleIcon, DragHandleIcon } from './icons/Icons';
 import { SUBTASK_STATUSES } from '../constants';
 
-type SubtaskWithProject = Subtask & {
+export type SubtaskWithProject = Subtask & {
     projects: Database['public']['Tables']['projects']['Row'] | null;
 };
 type SubtaskInsert = Database['public']['Tables']['subtasks']['Insert'];
@@ -320,3 +320,4 @@ const TodosView: React.FC = () => {
 };
 
 export default TodosView;
+    

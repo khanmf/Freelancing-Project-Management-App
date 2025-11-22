@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Project, Subtask, Database, SubtaskStatus, ProjectCategory, ProjectStatus } from '../types';
+import { Project, Subtask, Database, SubtaskStatus, ProjectCategory, ProjectStatus, Profile } from '../types';
 import { PROJECT_STATUSES, PROJECT_CATEGORIES, SUBTASK_STATUSES, CATEGORY_COLORS, STATUS_COLORS } from '../constants';
 import { supabase } from '../supabaseClient';
 import { useToast } from '../hooks/useToast';
+import { useAuth } from '../contexts/AuthContext';
 import Modal from './Modal';
 import AIProjectModal from './AIProjectModal';
 import { PlusIcon, PencilIcon, TrashIcon, ChevronDownIcon, SparklesIcon, BriefcaseIcon, ArrowUpIcon, ArrowDownIcon } from './icons/Icons';
@@ -14,7 +15,12 @@ type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 type ProjectUpdate = Database['public']['Tables']['projects']['Update'];
 
 // Subtask Form
-const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Omit<SubtaskInsert, 'project_id' | 'position'>) => void; onCancel: () => void; }> = ({ subtask, onSave, onCancel }) => {
+const SubtaskForm: React.FC<{ 
+    subtask: Subtask | null; 
+    onSave: (subtask: Omit<SubtaskInsert, 'project_id' | 'position'>) => void; 
+    onCancel: () => void;
+    users: Profile[]; 
+}> = ({ subtask, onSave, onCancel, users }) => {
     const [formData, setFormData] = useState({
         name: subtask?.name || '',
         status: subtask?.status as SubtaskStatus || SubtaskStatus.NotStarted,
@@ -36,7 +42,16 @@ const SubtaskForm: React.FC<{ subtask: Subtask | null; onSave: (subtask: Omit<Su
              <div className="grid grid-cols-2 gap-4">
                  <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Assigned To</label>
-                    <input type="text" placeholder="e.g., John Doe" value={formData.assigned_to || ''} onChange={(e) => setFormData({...formData, assigned_to: e.target.value})} className="input-field w-full" />
+                    <select 
+                        value={formData.assigned_to || ''} 
+                        onChange={(e) => setFormData({...formData, assigned_to: e.target.value})} 
+                        className="input-field w-full"
+                    >
+                        <option value="">Unassigned</option>
+                        {users.map(u => (
+                            <option key={u.id} value={u.full_name}>{u.full_name} ({u.email})</option>
+                        ))}
+                    </select>
                 </div>
                  <div>
                     <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1.5">Deadline</label>
@@ -154,11 +169,27 @@ const ProjectForm: React.FC<{ project: Project | null; onSave: (project: Project
 };
 
 // Project Row
-const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => void; onDelete: (id: string) => void; onSubtasksReordered: () => void; }> = ({ project, onEdit, onDelete, onSubtasksReordered }) => {
+const ProjectRow: React.FC<{ 
+    project: Project; 
+    onEdit: (project: Project) => void; 
+    onDelete: (id: string) => void; 
+    onSubtasksReordered: () => void;
+    users: Profile[];
+    isAdmin: boolean;
+    currentUserFullname: string | undefined;
+}> = ({ project, onEdit, onDelete, onSubtasksReordered, users, isAdmin, currentUserFullname }) => {
     const [isExpanded, setIsExpanded] = useState(false);
     const [isSubtaskModalOpen, setIsSubtaskModalOpen] = useState(false);
     const [editingSubtask, setEditingSubtask] = useState<Subtask | null>(null);
     const { addToast } = useToast();
+
+    // Auto expand if user is a collaborator and has tasks here
+    useEffect(() => {
+        if (!isAdmin && currentUserFullname) {
+            const hasMyTasks = project.subtasks.some(st => st.assigned_to === currentUserFullname);
+            if (hasMyTasks) setIsExpanded(true);
+        }
+    }, [isAdmin, currentUserFullname, project.subtasks]);
 
     const handleSaveSubtask = async (subtaskData: Omit<SubtaskInsert, 'project_id' | 'position'>) => {
         if (editingSubtask) {
@@ -268,8 +299,12 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
                     </span>
                 </div>
                 <div className="flex items-center justify-end space-x-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                    <button onClick={(e) => { e.stopPropagation(); onEdit(project); }} className="text-slate-400 hover:text-indigo-400 p-2 hover:bg-white/5 rounded-lg transition-colors"><PencilIcon className="h-4 w-4" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(project.id); }} className="text-slate-400 hover:text-red-400 p-2 hover:bg-white/5 rounded-lg transition-colors"><TrashIcon className="h-4 w-4" /></button>
+                    {isAdmin && (
+                        <>
+                            <button onClick={(e) => { e.stopPropagation(); onEdit(project); }} className="text-slate-400 hover:text-indigo-400 p-2 hover:bg-white/5 rounded-lg transition-colors"><PencilIcon className="h-4 w-4" /></button>
+                            <button onClick={(e) => { e.stopPropagation(); onDelete(project.id); }} className="text-slate-400 hover:text-red-400 p-2 hover:bg-white/5 rounded-lg transition-colors"><TrashIcon className="h-4 w-4" /></button>
+                        </>
+                    )}
                     <button onClick={() => setIsExpanded(!isExpanded)} className={`text-slate-400 hover:text-white p-2 hover:bg-white/5 rounded-lg transition-all duration-300 ${isExpanded ? 'rotate-180 bg-white/5' : ''}`}>
                         <ChevronDownIcon className="h-4 w-4" />
                     </button>
@@ -281,36 +316,51 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
                     <div className="px-5 pb-5 pt-2 bg-black/20 border-t border-white/5 space-y-3 inset-shadow-y">
                         <div className="flex items-center justify-between mb-2">
                             <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Subtasks & Milestones</h5>
-                            <button onClick={() => { setEditingSubtask(null); setIsSubtaskModalOpen(true);}} className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center px-2 py-1 rounded hover:bg-indigo-500/10 transition-colors">
-                                <PlusIcon className="h-3 w-3 mr-1" /> Add Subtask
-                            </button>
+                            {isAdmin && (
+                                <button onClick={() => { setEditingSubtask(null); setIsSubtaskModalOpen(true);}} className="text-xs font-medium text-indigo-400 hover:text-indigo-300 flex items-center px-2 py-1 rounded hover:bg-indigo-500/10 transition-colors">
+                                    <PlusIcon className="h-3 w-3 mr-1" /> Add Subtask
+                                </button>
+                            )}
                         </div>
                         
                         <div className="grid gap-2">
-                        {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => (
-                            <div key={st.id} className="flex items-center justify-between bg-slate-800/40 p-3 rounded-lg border border-white/5 hover:border-white/10 transition-all group/subtask">
-                               <div className="flex items-center space-x-3 flex-1 min-w-0">
-                                   <span className={`w-2 h-2 rounded-full ${st.status === SubtaskStatus.Completed ? 'bg-emerald-500/50' : st.status === SubtaskStatus.InProgress ? 'bg-blue-500/50' : 'bg-slate-600'}`}></span>
-                                   <div className="flex flex-col min-w-0">
-                                       <p className={`text-sm font-medium truncate ${st.status === SubtaskStatus.Completed ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-200'}`}>{st.name}</p>
-                                       <div className="flex items-center space-x-2 text-[10px] text-slate-500 mt-0.5">
-                                          {st.assigned_to && <span>@{st.assigned_to}</span>}
-                                          {st.deadline && <span>Due {st.deadline}</span>}
-                                       </div>
-                                   </div>
-                               </div>
-                               
-                               <div className="flex items-center space-x-2">
-                                    <span className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getSubtaskStatusColor(st.status)}`}>{st.status}</span>
-                                    <div className="flex items-center space-x-1 opacity-0 group-hover/subtask:opacity-100 transition-opacity px-2 border-l border-white/5 ml-2">
-                                        <button onClick={() => handleMoveSubtask(st.id, 'up')} disabled={index === 0} className="text-slate-500 hover:text-white disabled:opacity-20 p-1"><ArrowUpIcon className="h-3 w-3" /></button>
-                                        <button onClick={() => handleMoveSubtask(st.id, 'down')} disabled={index === project.subtasks.length - 1} className="text-slate-500 hover:text-white disabled:opacity-20 p-1"><ArrowDownIcon className="h-3 w-3" /></button>
-                                        <button onClick={() => { setEditingSubtask(st); setIsSubtaskModalOpen(true); }} className="text-slate-500 hover:text-indigo-400 p-1"><PencilIcon className="h-3 w-3" /></button>
-                                        <button onClick={() => handleDeleteSubtask(st.id)} className="text-slate-500 hover:text-red-400 p-1"><TrashIcon className="h-3 w-3" /></button>
+                        {[...project.subtasks].sort((a,b) => a.position - b.position).map((st, index) => {
+                             // Highlight tasks assigned to current user if logged in as collaborator
+                             const isAssignedToMe = !isAdmin && st.assigned_to === currentUserFullname;
+                             
+                             return (
+                                <div key={st.id} className={`flex items-center justify-between bg-slate-800/40 p-3 rounded-lg border border-white/5 hover:border-white/10 transition-all group/subtask ${isAssignedToMe ? 'ring-1 ring-indigo-500/50 bg-indigo-900/10' : ''}`}>
+                                <div className="flex items-center space-x-3 flex-1 min-w-0">
+                                    <span className={`w-2 h-2 rounded-full ${st.status === SubtaskStatus.Completed ? 'bg-emerald-500/50' : st.status === SubtaskStatus.InProgress ? 'bg-blue-500/50' : 'bg-slate-600'}`}></span>
+                                    <div className="flex flex-col min-w-0">
+                                        <p className={`text-sm font-medium truncate ${st.status === SubtaskStatus.Completed ? 'text-slate-500 line-through decoration-slate-600' : 'text-slate-200'}`}>{st.name}</p>
+                                        <div className="flex items-center space-x-2 text-[10px] text-slate-500 mt-0.5">
+                                            {st.assigned_to && <span>@{st.assigned_to}</span>}
+                                            {st.deadline && <span>Due {st.deadline}</span>}
+                                        </div>
                                     </div>
-                               </div>
-                            </div>
-                        ))}
+                                </div>
+                                
+                                <div className="flex items-center space-x-2">
+                                        <span className={`px-2 py-0.5 text-[10px] font-medium rounded border ${getSubtaskStatusColor(st.status)}`}>{st.status}</span>
+                                        
+                                        {/* Actions: Admin does everything. Collaborator can only edit their own task (e.g. update status) */}
+                                        {(isAdmin || isAssignedToMe) && (
+                                            <div className="flex items-center space-x-1 opacity-0 group-hover/subtask:opacity-100 transition-opacity px-2 border-l border-white/5 ml-2">
+                                                {isAdmin && (
+                                                    <>
+                                                        <button onClick={() => handleMoveSubtask(st.id, 'up')} disabled={index === 0} className="text-slate-500 hover:text-white disabled:opacity-20 p-1"><ArrowUpIcon className="h-3 w-3" /></button>
+                                                        <button onClick={() => handleMoveSubtask(st.id, 'down')} disabled={index === project.subtasks.length - 1} className="text-slate-500 hover:text-white disabled:opacity-20 p-1"><ArrowDownIcon className="h-3 w-3" /></button>
+                                                    </>
+                                                )}
+                                                <button onClick={() => { setEditingSubtask(st); setIsSubtaskModalOpen(true); }} className="text-slate-500 hover:text-indigo-400 p-1"><PencilIcon className="h-3 w-3" /></button>
+                                                {isAdmin && <button onClick={() => handleDeleteSubtask(st.id)} className="text-slate-500 hover:text-red-400 p-1"><TrashIcon className="h-3 w-3" /></button>}
+                                            </div>
+                                        )}
+                                </div>
+                                </div>
+                            );
+                        })}
                         </div>
                         
                          {project.subtasks.length === 0 && (
@@ -322,7 +372,7 @@ const ProjectRow: React.FC<{ project: Project; onEdit: (project: Project) => voi
                 </div>
             </div>
             <Modal isOpen={isSubtaskModalOpen} onClose={() => setIsSubtaskModalOpen(false)} title={editingSubtask ? 'Edit Subtask' : 'Add Subtask'}>
-                <SubtaskForm subtask={editingSubtask} onSave={handleSaveSubtask} onCancel={() => setIsSubtaskModalOpen(false)} />
+                <SubtaskForm subtask={editingSubtask} onSave={handleSaveSubtask} onCancel={() => setIsSubtaskModalOpen(false)} users={users} />
             </Modal>
         </div>
     );
@@ -336,7 +386,20 @@ const ProjectsView: React.FC = () => {
     const [editingProject, setEditingProject] = useState<Project | null>(null);
     const [isAIModalOpen, setIsAIModalOpen] = useState(false);
     const [prefilledSubtasks, setPrefilledSubtasks] = useState<string[]>([]);
+    const [users, setUsers] = useState<Profile[]>([]);
     const { addToast } = useToast();
+    const { isAdmin, profile } = useAuth();
+
+    // Fetch available users for assignment dropdown
+    useEffect(() => {
+        const fetchUsers = async () => {
+            const { data, error } = await supabase.from('profiles').select('*');
+            if (!error && data) {
+                setUsers(data as Profile[]);
+            }
+        };
+        fetchUsers();
+    }, []);
 
     const fetchProjects = useCallback(async () => {
         setLoading(true);
@@ -469,33 +532,55 @@ const ProjectsView: React.FC = () => {
         </div>
     );
 
-    const noProjectsExist = projects.length === 0;
+    // Filtering Logic:
+    // If Admin: Show all projects.
+    // If Collaborator: Show projects that contain at least one subtask assigned to them OR are assigned to project level (if we had that field, defaulting to task level check).
+    const filteredProjects = isAdmin 
+        ? projects 
+        : projects.filter(p => 
+            p.subtasks.some(st => st.assigned_to === profile?.full_name) || 
+            // Optional: If you want collaborators to see all projects, remove this filter. 
+            // Based on prompt "he has only access to those tasks or those projects that are assigned to him"
+            // We are checking if any subtask is assigned to the user.
+            p.subtasks.length === 0 // Edge case: Should they see empty projects? Probably not, but keeping it clean.
+        );
+
+    // We need to further filter filtering. If a project is visible, we might want to show only relevant tasks, or all tasks?
+    // The prompt says "access to those tasks... assigned to him".
+    // However, seeing the context of the whole project is usually helpful. 
+    // For this implementation, they see the Project card if they have work in it.
+
+    const noProjectsExist = filteredProjects.length === 0;
 
     return (
         <div className="space-y-8">
-            <div className="flex flex-wrap gap-4">
-                 <button onClick={handleOpenManualAdd} className="primary-gradient px-5 py-2.5 rounded-xl text-sm font-medium flex items-center transition-transform hover:-translate-y-0.5 active:scale-95">
-                    <PlusIcon className="h-5 w-5 mr-2" />
-                    New Project
-                </button>
-                 <button onClick={() => setIsAIModalOpen(true)} className="glass-button px-5 py-2.5 rounded-xl text-sm font-medium text-indigo-300 flex items-center border-indigo-500/20 hover:bg-indigo-500/10">
-                    <SparklesIcon className="h-5 w-5 mr-2 text-indigo-400" />
-                    Generate with AI
-                </button>
-            </div>
+            {isAdmin && (
+                <div className="flex flex-wrap gap-4">
+                    <button onClick={handleOpenManualAdd} className="primary-gradient px-5 py-2.5 rounded-xl text-sm font-medium flex items-center transition-transform hover:-translate-y-0.5 active:scale-95">
+                        <PlusIcon className="h-5 w-5 mr-2" />
+                        New Project
+                    </button>
+                    <button onClick={() => setIsAIModalOpen(true)} className="glass-button px-5 py-2.5 rounded-xl text-sm font-medium text-indigo-300 flex items-center border-indigo-500/20 hover:bg-indigo-500/10">
+                        <SparklesIcon className="h-5 w-5 mr-2 text-indigo-400" />
+                        Generate with AI
+                    </button>
+                </div>
+            )}
 
             {noProjectsExist ? (
                  <div className="flex flex-col items-center justify-center py-20 glass-panel rounded-2xl border-dashed border-2 border-white/10">
                     <div className="bg-slate-800 p-4 rounded-full mb-4">
                         <BriefcaseIcon className="h-10 w-10 text-slate-500" />
                     </div>
-                    <h3 className="text-xl font-bold text-white">No projects yet</h3>
-                    <p className="mt-2 text-slate-400">Kickstart your workflow by adding your first client project.</p>
+                    <h3 className="text-xl font-bold text-white">No projects found</h3>
+                    <p className="mt-2 text-slate-400">
+                        {isAdmin ? "Kickstart your workflow by adding your first client project." : "You don't have any assigned projects yet."}
+                    </p>
                  </div>
             ) : (
                 <div className="space-y-10">
                     {PROJECT_CATEGORIES.map(category => {
-                        const categoryProjects = projects.filter(p => p.category === category);
+                        const categoryProjects = filteredProjects.filter(p => p.category === category);
                         if (categoryProjects.length === 0) return null;
                         return (
                             <div key={category} className="animate-fade-in-up">
@@ -514,7 +599,16 @@ const ProjectsView: React.FC = () => {
                                     </div>
                                     <div>
                                         {categoryProjects.map(project => (
-                                            <ProjectRow key={project.id} project={project} onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} onDelete={handleDeleteProject} onSubtasksReordered={fetchProjects} />
+                                            <ProjectRow 
+                                                key={project.id} 
+                                                project={project} 
+                                                onEdit={() => {setEditingProject(project); setIsProjectModalOpen(true);}} 
+                                                onDelete={handleDeleteProject} 
+                                                onSubtasksReordered={fetchProjects} 
+                                                users={users}
+                                                isAdmin={isAdmin}
+                                                currentUserFullname={profile?.full_name}
+                                            />
                                         ))}
                                     </div>
                                 </div>
